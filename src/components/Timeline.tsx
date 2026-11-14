@@ -23,12 +23,12 @@ export function Timeline() {
   const lang = state.lang;
   const valueText = `${formatDate(dates[i], lang)}, ${t(lang, 'timeline.pass', { i: i + 1, n })}${dropped[i] ? `. ${t(lang, 'timeline.dropped')}` : ''}`;
 
-  // Space toggles play anywhere on the map screen, unless focus is in a form control or on a button.
+  // Space toggles play anywhere on the map screen, unless focus is on a control that Space itself activates.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.code !== 'Space') return;
       const tag = (e.target as HTMLElement).tagName;
-      if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A'].includes(tag)) return;
+      if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A', 'SUMMARY'].includes(tag)) return;
       e.preventDefault();
       dispatch({ type: 'togglePlay' });
     };

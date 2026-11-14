@@ -45,3 +45,18 @@ export function Reveal() {
     </section>
   );
 }
+
+/** Same grid as Reveal (text left, square picture right), so the landing screen does not jump on load (PRD 11). */
+export function RevealSkeleton({ label }: { label: string }) {
+  return (
+    <section className="reveal" aria-busy="true">
+      <div className="reveal__text">
+        <p className="visually-hidden" role="status">{label}</p>
+        {Array.from({ length: 4 }, (_, i) => <div key={i} className="skeleton-row" />)}
+      </div>
+      <div className="reveal__compare">
+        <div className="divider" />
+      </div>
+    </section>
+  );
+}

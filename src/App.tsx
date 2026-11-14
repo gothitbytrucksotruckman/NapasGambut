@@ -3,7 +3,7 @@ import { AppShell } from './components/AppShell';
 import { ErrorScreen } from './components/ErrorScreen';
 import { t } from './i18n';
 import { Method } from './screens/Method';
-import { Reveal } from './screens/Reveal';
+import { Reveal, RevealSkeleton } from './screens/Reveal';
 import { Scorecard } from './screens/Scorecard';
 import { SeasonMap, SeasonMapSkeleton } from './screens/SeasonMap';
 import { parseHash } from './state/hash';
@@ -30,8 +30,9 @@ export function App() {
     loadFromEnv().then(setLoad);
   }, []);
 
-  // Before the bundle arrives we only know the language from the URL.
-  const lang = parseHash(location.hash, { dates: [], hasCell: () => false }).lang;
+  // Before the bundle arrives we only know the language and screen from the URL.
+  const { lang, screen } = parseHash(location.hash, { dates: [], hasCell: () => false });
+  const label = t(lang, 'load.title');
 
   if (load.status === 'ready')
     return (
@@ -43,8 +44,10 @@ export function App() {
     <AppShell lang={lang} dataKind={null}>
       {load.status === 'error' ? (
         <ErrorScreen error={load.error} lang={lang} />
+      ) : screen === 'reveal' ? (
+        <RevealSkeleton label={label} />
       ) : (
-        <SeasonMapSkeleton label={t(lang, 'load.title')} />
+        <SeasonMapSkeleton label={label} />
       )}
     </AppShell>
   );

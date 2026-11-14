@@ -7,7 +7,7 @@ import { Timeline } from '../components/Timeline';
 import { droppedReason, isDropped } from '../data/selectors';
 import { formatDate, t } from '../i18n';
 import { LayerSwitch } from '../layers/LayerSwitch';
-import { addRadarLayer, applyValues, fillColorFor, showRadar } from '../layers/mapLayers';
+import { addRadarLayer, applyValues, fillColorFor, RADAR_LAYER, showRadar } from '../layers/mapLayers';
 import { RampLegend } from '../layers/RampLegend';
 import type { RampLayer } from '../layers/ramps';
 import { cssVar } from '../data/states';
@@ -112,7 +112,8 @@ export function SeasonMap() {
     map.setPaintProperty(CELLS_FILL, 'fill-opacity', ramp ? 0.9 : hollowOpacityExpr());
     map.setLayoutProperty('cells-silent', 'visibility', layer === 'state' ? 'visible' : 'none');
     setCellsVisible(map, layer !== 'radar');
-    map.setLayoutProperty('radar-img', 'visibility', layer === 'radar' ? 'visible' : 'none');
+    // showRadar() (date effect above) turns the picture on per date; here it is only turned off.
+    if (layer !== 'radar' && map.getLayer(RADAR_LAYER)) map.setLayoutProperty(RADAR_LAYER, 'visibility', 'none');
   }, [ready, layer, themeTick]);
 
   useEffect(() => {

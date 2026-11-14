@@ -186,3 +186,35 @@ Rulings:
 - Removed the five strings kept for the old stub and "selected cell" box; merged layer and theme strings into src/i18n and deleted `src/layers/strings.ts`. Layer-string presence (built from template keys the compiler cannot check) is now tested against src/i18n directly.
 
 Remaining: M5-5 (deploy workflow, already written) and M5-6 (README, user). Not yet done: running the workflow on GitHub; a manual pass on a real phone (PRD 12 checklist).
+
+## 2026-11-14 · Quality check after the backend merge (report only, no code changed)
+
+State at HEAD `a92da77`. Verification: `npm run typecheck` clean · `npm test` 13 files, 92 tests passed · `npm run build` ok (JS 1.49 MB, 423 kB gzip; Vite warns about the >500 kB chunk, mostly MapLibre) · `npm run mock --out <temp>` gives files byte-identical to the committed `public/bundle/`, except the two extra PNGs below.
+
+What changed since the M5-4 entry (not logged before):
+- M5-5 done: `.github/workflows/deploy.yml` committed (`3bf414b`). Not yet seen running on GitHub. M5-6 (README) still missing.
+- `.gitignore` is now committed (PR #1). It replaced the staged-release blocks with Python, data and secrets rules, and ignores `/docs/superpowers/`, so the plan file stays local.
+- Backend pipeline merged from teammates (PR #1 and after): `pipeline/00_census.py` to `07_states.py`, `config.yaml`, `data/` (parquet, json, `gcov_cube.zarr`, about 18 MB), and a second, pipeline-owned bundle folder `bundle/` at the repo root (10 real radar PNGs, 12,210-cell `cells.geojson`, 24 OSM canals). The app does not read `bundle/`; it still serves `public/bundle/` (mock).
+- `public/bundle/images/smoke_reveal.png` and `sentinel1_contrast.png` added (`9090088`). Not in the contract, not referenced by the manifest, and deleted by the next `npm run mock` (it wipes the output folder).
+- `docs/dependency_graph.{png,svg}` added with the pipeline scripts (`7a7ae8d`); not referenced from any doc.
+
+Conflicts found (details in the QC report given to the user):
+1. `pipeline/07_states.py` does not follow PRD 6.6: HV test uses the index level instead of the fall since the previous pass; coherence threshold 0.25 instead of 20/100; re-wetting needs only `rain > 5 mm` in the current interval instead of any interval `>= rain_return_mm` (50); missing sigma silently becomes 0.12 dB. The Method screen describes the PRD rules, so real states would not match the text.
+2. `pipeline/06_context_visuals.py` writes hard-coded NISAR vs Sentinel-1 "results" (-2.45 dB vs -0.85 dB) with no Sentinel-1 data read. Must not reach the app as findings.
+3. Pipeline scorecard test ids (`test1_canal_correlation` ...) and `median_passes_to_recovery` (from first fire, not from lowest drying) differ from the mock and PRD 6.7. Extra keys are dropped by zod, so it still loads.
+4. Real `cells.geojson` alone is 4.04 MB; with a 12,210-cell `series.json` (about 2.3 MB at mock density) the non-image budget of 6 MB (PRD 5.11) is likely exceeded. The pipeline has no size check.
+5. `data/*.zarr/` is in `.gitignore` but `data/gcov_cube.zarr` is tracked, so the rule does nothing for it.
+6. App: Space on the pulse card's "Show the numbers" summary toggles playback instead of opening the table; the radar-picture layer keeps the previous pass's image when a date has no radar entry; the loading skeleton always uses the map layout although the landing screen is Reveal.
+
+## 2026-11-14 · QC fixes 6 to 8 (DONE, awaiting user commit)
+
+Verification: `npm run typecheck` clean · `npm test` 13 files, 93 tests passed · `npm run build` ok · real app on the Vite dev server, built-in browser, 1366 px:
+- Space on the pulse card's "Show the numbers" summary opens the table and leaves playback stopped; Space on the timeline slider still starts playback.
+- Radar picture layer still shows on normal passes and during playback.
+- Loading `#/reveal` with the bundle held back 2.5 s shows the Reveal skeleton; its picture box (655, 116, 624 x 624) is exactly where the real picture lands.
+- console: no errors.
+
+Changes:
+- `src/components/Timeline.tsx`: the global Space handler also skips `SUMMARY`, which Space opens natively.
+- `src/layers/mapLayers.ts` `showRadar()`: hides the radar layer when the date has no radar image, instead of keeping the previous pass's picture. `src/screens/SeasonMap.tsx` now only hides the layer on other layers and leaves showing it to `showRadar()`, so the two cannot disagree. Test added in `tests/layers.test.ts` (date with no image hides the layer and never repoints the source).
+- `src/screens/Reveal.tsx` `RevealSkeleton` + `src/App.tsx`: the loading skeleton follows the screen in the URL. Reveal (the landing screen) gets the Reveal grid; every other screen keeps the map skeleton. Scorecard and Method still load under the map skeleton (not fixed; they are text pages that open from the nav, rarely by direct link).

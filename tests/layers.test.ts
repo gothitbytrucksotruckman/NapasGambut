@@ -4,6 +4,10 @@ import { CLASS_IDS } from '../src/contract';
 import { en } from '../src/i18n/en';
 import { id } from '../src/i18n/id';
 import { LAYERS } from '../src/state/hash';
+import type { Map as MLMap } from 'maplibre-gl';
+import { loadBundle } from '../src/data/load';
+import { RADAR_LAYER, showRadar } from '../src/layers/mapLayers';
+import { fakeFetch, readJson } from './data/fixture';
 
 // Layer keys are built from template strings (`layer.${l}.title`), which the compiler cannot check.
 describe('layer strings', () => {
@@ -20,6 +24,23 @@ describe('layer strings', () => {
   });
   it('has a class label for every class the contract allows', () => {
     for (const c of CLASS_IDS) for (const lang of ['en', 'id'] as const) expect(dicts[lang][`class.${c}`]).toBeTruthy();
+  });
+});
+
+describe('radar picture layer', () => {
+  it('hides the picture on a date with no radar image instead of keeping the previous one', async () => {
+    const m = readJson('manifest.json');
+    const last = m.dates.length - 1;
+    m.images.radar = m.images.radar.filter((r: { date: string }) => r.date !== m.dates[last]);
+    const b = await loadBundle('bundle/', fakeFetch({ 'manifest.json': m }));
+    const calls: [string, string, string][] = [];
+    const map = {
+      getSource: () => ({ updateImage: () => { throw new Error('must not repoint'); } }),
+      getLayer: () => ({}),
+      setLayoutProperty: (id: string, k: string, v: string) => calls.push([id, k, v]),
+    } as unknown as MLMap;
+    showRadar(map, b, last);
+    expect(calls).toEqual([[RADAR_LAYER, 'visibility', 'none']]);
   });
 });
 

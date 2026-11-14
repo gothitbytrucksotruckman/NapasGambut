@@ -37,11 +37,15 @@ export function addRadarLayer(map: MLMap, b: Bundle, beforeId: string) {
   map.addLayer({ id: RADAR_LAYER, type: 'raster', source: RADAR_SRC, layout: { visibility: 'none' }, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, beforeId);
 }
 
-/** Point the radar picture at date t and warm the browser cache for t+1 (PRD 8.2 "preload the next date's image"). */
+/**
+ * Point the radar picture at date t and warm the browser cache for t+1 (PRD 8.2 "preload the next date's image").
+ * A date with no picture hides the layer, so the previous pass's picture never shows under the wrong date.
+ */
 export function showRadar(map: MLMap, b: Bundle, t: number) {
   const src = map.getSource<ImageSource>(RADAR_SRC);
   const url = radarFile(b, t);
   if (src && url) src.updateImage({ url });
+  if (map.getLayer(RADAR_LAYER)) map.setLayoutProperty(RADAR_LAYER, 'visibility', url ? 'visible' : 'none');
   const next = radarFile(b, t + 1);
   if (next) new Image().src = next;
 }
