@@ -268,6 +268,12 @@ def run_quality_control(cfg):
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
+    kept_json_path = report_path.parent / "kept_dates.json"
+    kept_json_path.write_text(json.dumps(kept_dates, indent=2), encoding="utf-8")
+
+    kept_txt_path = report_path.parent / "kept_dates.txt"
+    kept_txt_path.write_text("\n".join(kept_dates) + "\n", encoding="utf-8")
+
     qc_alias_rel = cfg.get("qc_report_json")
     if qc_alias_rel and qc_alias_rel != report_rel:
         alias_path = _resolve_path(qc_alias_rel)

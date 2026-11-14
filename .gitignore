@@ -25,7 +25,6 @@ data/*.tif
 data/*.zarr/
 data/parts_batch_*/
 data/qc_report.json
-bundle/
 docs/references/*.pdf
 
 # OS
