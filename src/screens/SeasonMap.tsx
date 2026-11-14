@@ -10,6 +10,7 @@ import {
   addHatchImage, applyStates, buildStyle, CELLS_FILL, hollowOpacityExpr, setHatchFilter, setSelected,
 } from '../map/layers';
 import { useApp } from '../state/store';
+import { PulseCard } from './PulseCard';
 import './SeasonMap.css';
 
 // MapLibre locates its worker relative to its own module URL; Vite's dep pre-bundling moves the module, so point at the real file.
@@ -49,7 +50,8 @@ export function SeasonMap() {
       attributionControl: { compact: true },
     });
     map.touchZoomRotate.disableRotation();
-    map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
+    // Bottom-left: the pulse card opens on the right and would cover top-right controls.
+    map.addControl(new NavigationControl({ showCompass: false }), 'bottom-left');
     map.on('load', () => {
       addHatchImage(map);
       map.setPaintProperty(CELLS_FILL, 'fill-opacity', hollowOpacityExpr());
@@ -84,11 +86,16 @@ export function SeasonMap() {
     if (!map || !ready) return;
     setSelected(map, selectedCell);
     const f = selectedCell ? bundle.idx.feature.get(selectedCell) : null;
-    if (f) {
-      const [lon, lat] = f.properties.centroid;
-      const b = map.getBounds();
-      if (!b.contains([lon, lat])) map.easeTo({ center: [lon, lat], duration: reducedMotion() ? 0 : 600 });
-    }
+    if (!f) return;
+    // Keep the cell visible beside the pulse card: shift the view left on desktop, up on phones.
+    const c = map.getContainer();
+    const wide = c.clientWidth > 860;
+    const offset: [number, number] = wide ? [-Math.min(230, c.clientWidth / 4), 0] : [0, -c.clientHeight / 4];
+    const zoom = Math.max(map.getZoom(), 11);
+    // Reduced motion (PRD 11): the fly-to becomes an instant jump.
+    if (reducedMotion()) map.jumpTo({ center: f.properties.centroid, zoom });
+    else map.flyTo({ center: f.properties.centroid, zoom, offset, duration: 700 });
+    if (reducedMotion()) map.panBy(offset.map((v) => -v) as [number, number], { animate: false });
   }, [ready, bundle, selectedCell]);
 
   useEffect(() => {
@@ -120,14 +127,7 @@ export function SeasonMap() {
             <option value="none">{t(lang, 'map.basemap.none')}</option>
           </select>
         </div>
-        {selectedCell && (
-          <div className="season__selected">
-            <span className="num">{t(lang, 'map.selected', { id: selectedCell })}</span>
-            <button type="button" className="btn" onClick={() => dispatch({ type: 'select', cell: null })}>
-              {t(lang, 'map.clear')}
-            </button>
-          </div>
-        )}
+        <PulseCard />
       </div>
       <aside className="season__side">
         <Legend title={t(lang, 'legend.title', { date: formatDate(date, lang) })} />
