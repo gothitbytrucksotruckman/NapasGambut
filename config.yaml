@@ -9,6 +9,7 @@ fallback_cell_size_m: 1000
 sigma_threshold: 2.0
 headline_sigma: 3.0
 deep_drying_sigma: 4.0
+rain_return_mm: 50  # interval rain that counts as "rain returned" (build brief 5.4, state rule 5)
 min_valid_fraction: 0.5
 reference_min_cells: 200
 

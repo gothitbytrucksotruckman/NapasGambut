@@ -1,0 +1,83 @@
+.timeline {
+  grid-area: time;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+}
+.timeline--skeleton {
+  min-height: 96px;
+}
+
+.timeline__buttons {
+  display: flex;
+  gap: var(--sp-1);
+}
+.timeline__play {
+  min-width: 56px;
+}
+
+.timeline__track {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline__readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  margin-bottom: var(--sp-1);
+}
+.timeline__date {
+  font-family: var(--font-story);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.timeline__pass {
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+}
+.timeline__droptag {
+  padding: 0 var(--sp-2);
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  font-size: var(--fs-xs);
+}
+
+.timeline__slider {
+  padding: var(--sp-1) 0;
+  border-radius: var(--radius);
+  touch-action: none;
+  user-select: none;
+}
+.timeline__labels {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+  text-align: center;
+  white-space: nowrap;
+}
+.timeline__labels .is-current {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Phones: buttons stay under the thumb, track gets the full width above them. */
+@media (max-width: 560px) {
+  .timeline {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: var(--sp-2);
+  }
+  .timeline__buttons {
+    justify-content: center;
+  }
+  .timeline__buttons .btn {
+    flex: 1;
+  }
+}

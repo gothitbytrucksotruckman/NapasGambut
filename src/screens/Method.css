@@ -1,0 +1,135 @@
+/* The notebook page: narrow measure, serif headings, pass-ruler rule under each heading. */
+.method {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5) var(--sp-7);
+}
+.method h1 {
+  font-family: var(--font-story);
+  font-size: var(--fs-xl);
+  line-height: 1.2;
+}
+.method__mock {
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--on-drying);
+  border-left-width: 1px;
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: var(--fs-sm);
+}
+.method section {
+  margin-top: var(--sp-6);
+}
+.method h2 {
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--font-story);
+  font-size: var(--fs-lg);
+}
+.method p + p {
+  margin-top: var(--sp-3);
+}
+
+.method__formula {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--paper-sunk);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  line-height: 2;
+  overflow-x: auto;
+}
+
+.method__rules {
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: rule;
+}
+.method__rules li {
+  display: grid;
+  grid-template-columns: 2ch 16px 1fr;
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--rule);
+  counter-increment: rule;
+}
+.method__rules li::before {
+  content: counter(rule);
+  font-family: var(--font-num);
+  color: var(--ink-soft);
+}
+.method__rules .swatch {
+  width: 14px;
+  height: 14px;
+  align-self: center;
+}
+
+.method__limits {
+  margin: 0;
+  padding-left: var(--sp-5);
+}
+.method__limits li + li {
+  margin-top: var(--sp-2);
+}
+
+.method__ruler {
+  display: block;
+  margin-bottom: var(--sp-3);
+}
+.method__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.method__facts dt {
+  color: var(--ink-soft);
+}
+.method__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.method__plain {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.method__sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.method__sources li {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.method__sources a {
+  color: var(--radar);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+.method__sources span {
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+@media (max-width: 560px) {
+  .method {
+    padding: var(--sp-4);
+  }
+  .method__facts {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .method__facts dd {
+    margin-bottom: var(--sp-2);
+  }
+}

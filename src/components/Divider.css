@@ -1,0 +1,76 @@
+.divider {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-sunk);
+  touch-action: none;
+  user-select: none;
+  cursor: ew-resize;
+}
+.divider__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.divider__tag {
+  position: absolute;
+  top: var(--sp-2);
+  padding: 2px var(--sp-2);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.divider__tag--left {
+  left: var(--sp-2);
+}
+.divider__tag--right {
+  right: var(--sp-2);
+}
+
+/* The handle is the radar beam: one teal line, the page's single accent moment. */
+.divider__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--tap);
+  margin-left: calc(var(--tap) / -2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+}
+.divider__handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  background: var(--radar);
+}
+.divider__grip {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 50%;
+  background: var(--radar);
+  color: var(--radar-ink);
+}
+.divider__handle:focus-visible {
+  outline: none;
+}
+.divider__handle:focus-visible .divider__grip {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}

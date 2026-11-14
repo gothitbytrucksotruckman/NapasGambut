@@ -31,22 +31,45 @@ def load_inputs():
     return df_cells, dates
 
 
+REPEAT_DAYS = 12  # NISAR repeat cycle
+
+
+def pass_calendar(kept_dates):
+    """Every 12-day pass from the first to the last kept date, including passes with no radar data.
+
+    Contract rule 4 of the design doc: a pass that was never acquired (the 27 Jul - 10 Aug 2026 NISAR gap)
+    keeps its slot, so fire and rain are counted per real 12-day interval and the timeline stays honest.
+    """
+    first = datetime.strptime(kept_dates[0], "%Y-%m-%d")
+    last = datetime.strptime(kept_dates[-1], "%Y-%m-%d")
+    n = (last - first).days // REPEAT_DAYS
+    cal = [(first + timedelta(days=REPEAT_DAYS * i)).strftime("%Y-%m-%d") for i in range(n + 1)]
+    off = sorted(set(kept_dates) - set(cal))
+    if off:
+        raise ValueError(f"Kept dates not on the 12-day pass calendar: {off}")
+    return cal
+
+
 def fetch_firms_chunk(source, bbox_str, date_str, day_range=5):
     url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_MAP_KEY}/{source}/{bbox_str}/{day_range}/{date_str}"
+    """Detections for one 5-day window, an empty frame when there were none, or None when the request failed."""
     try:
         resp = requests.get(url, timeout=20)
-        if resp.status_code == 200 and resp.text.strip():
-            df = pd.read_csv(io.StringIO(resp.text))
-            if not df.empty and "latitude" in df.columns and "longitude" in df.columns:
-                df["source"] = source
-                return df
-    except Exception:
-        pass
-    return pd.DataFrame()
+        if resp.status_code != 200 or "latitude" not in resp.text[:500]:
+            print(f"[WARN] FIRMS {source} {date_str}: HTTP {resp.status_code} {resp.text[:120]!r}")
+            return None
+        df = pd.read_csv(io.StringIO(resp.text))
+        df["source"] = source
+        return df
+    except Exception as exc:
+        print(f"[WARN] FIRMS {source} {date_str}: {exc}")
+        return None
 
 
 def fetch_firms_fires(bbox, start_date_str, end_date_str):
-    sources = ["VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT"]
+    # FIRMS moves older days from _NRT to _SP (standard processing); per sensor the two never overlap,
+    # so querying both covers the whole season without double counting.
+    sources = ["VIIRS_NOAA20_NRT", "VIIRS_NOAA20_SP", "VIIRS_NOAA21_NRT", "VIIRS_NOAA21_SP"]
     bbox_str = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
 
     start_dt = datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -65,10 +88,17 @@ def fetch_firms_fires(bbox, start_date_str, end_date_str):
                 tasks.append(executor.submit(fetch_firms_chunk, src, bbox_str, q_date, 5))
 
         frames = []
+        failed = 0
         for future in concurrent.futures.as_completed(tasks):
             res = future.result()
-            if not res.empty:
+            if res is None:
+                failed += 1
+            elif not res.empty:
                 frames.append(res)
+
+    # A failed window would silently read as "no fire" and change the states, so stop instead.
+    if failed:
+        raise RuntimeError(f"{failed} of {len(tasks)} FIRMS requests failed; fire counts would be incomplete.")
 
     if not frames:
         return gpd.GeoDataFrame(columns=["latitude", "longitude", "acq_date", "geometry"], crs="EPSG:4326")
@@ -107,7 +137,8 @@ def process_fire_spatial_joins(df_cells, gdf_fires, dates):
         d_start = dates[k]
         d_end = dates[k + 1]
 
-        mask = (gdf_fires_utm["acq_date"] >= d_start) & (gdf_fires_utm["acq_date"] <= d_end)
+        # Half-open (d_start, d_end], like the rain intervals: a fire on a pass date counts once, not twice.
+        mask = (gdf_fires_utm["acq_date"] > d_start) & (gdf_fires_utm["acq_date"] <= d_end)
         int_fires_direct = direct_fires[mask]
         int_fires_buf = buffered_fires[mask]
 
@@ -147,16 +178,15 @@ def fetch_daily_rainfall(bbox, start_date, end_date):
         f"start_date={start_date}&end_date={end_date}&"
         f"daily=precipitation_sum&timezone=UTC"
     )
-    try:
-        resp = requests.get(url, timeout=15)
-        if resp.status_code == 200:
-            daily = resp.json().get("daily", {})
-            times = daily.get("time", [])
-            rain = daily.get("precipitation_sum", [])
-            return dict(zip(times, [float(v) if v is not None else 0.0 for v in rain]))
-    except Exception as e:
-        print(f"[WARN] Rainfall API fallback error: {e}")
-    return {}
+    # Open-Meteo archive: ERA5-family reanalysis at the box centre, about 5 days behind real time. Not IMERG.
+    resp = requests.get(url, timeout=15)
+    if resp.status_code != 200:
+        raise RuntimeError(f"Open-Meteo archive returned HTTP {resp.status_code}: {resp.text[:200]}")
+    daily = resp.json().get("daily", {})
+    times = daily.get("time", [])
+    rain = daily.get("precipitation_sum", [])
+    # A missing day stays missing (None), never 0 mm.
+    return {t: float(v) for t, v in zip(times, rain) if v is not None}
 
 
 def compute_rainfall_metrics(dates, bbox):
@@ -175,8 +205,7 @@ def compute_rainfall_metrics(dates, bbox):
     for d_str in dates:
         dt = datetime.strptime(d_str, "%Y-%m-%d")
         three_days = [(dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in (1, 2, 3)]
-        val = sum(daily_rain.get(day, 0.0) for day in three_days)
-        rain_3d_mm.append(round(val, 2))
+        rain_3d_mm.append(_sum_or_none(daily_rain, three_days))
 
     rain_interval_mm = []
     for k in range(len(dates) - 1):
@@ -187,15 +216,25 @@ def compute_rainfall_metrics(dates, bbox):
         while cur <= d1:
             days.append(cur.strftime("%Y-%m-%d"))
             cur += timedelta(days=1)
-        val = sum(daily_rain.get(day, 0.0) for day in days)
-        rain_interval_mm.append(round(val, 2))
+        rain_interval_mm.append(_sum_or_none(daily_rain, days))
 
     return rain_3d_mm, rain_interval_mm
 
 
+def _sum_or_none(daily_rain, days):
+    """Total over the days, or None if any day has no value (the contract's null, not a guessed 0)."""
+    if any(day not in daily_rain for day in days):
+        return None
+    return round(sum(daily_rain[day] for day in days), 2)
+
+
 def main():
     print("[1/4] Loading input grid cells and kept dates...")
-    df_cells, dates = load_inputs()
+    df_cells, kept_dates = load_inputs()
+    dates = pass_calendar(kept_dates)
+    missing = [d for d in dates if d not in kept_dates]
+    if missing:
+        print(f"      Passes with no radar data (kept as dropped slots): {missing}")
     bbox = [
         float(df_cells["lon"].min()),
         float(df_cells["lat"].min()),
@@ -215,11 +254,14 @@ def main():
     df_fires.to_parquet(fires_path, index=False)
     print(f"      Saved {fires_path} ({len(df_fires)} cells, total fire occurrences: {df_fires['total_fires'].sum()})")
 
-    print("[4/4] Ingesting GPM IMERG rainfall context...")
+    print("[4/4] Ingesting Open-Meteo archive rainfall (ERA5-family reanalysis)...")
     rain_3d_mm, rain_interval_mm = compute_rainfall_metrics(dates, bbox)
 
     summary = {
         "dates": dates,
+        # 08_export copies these into manifest.sources so the app names the providers actually used.
+        "rain_source": "Open-Meteo historical weather archive (ERA5-family reanalysis), daily precipitation_sum at the box centre",
+        "fire_source": "NASA FIRMS area API, VIIRS NOAA-20 and NOAA-21, NRT and SP",
         "rain_3d_mm": rain_3d_mm,
         "rain_3day_mm": rain_3d_mm,
         "rain_interval_mm": rain_interval_mm,

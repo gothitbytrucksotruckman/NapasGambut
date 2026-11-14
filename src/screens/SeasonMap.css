@@ -1,0 +1,165 @@
+/* Map first (PRD 9): map fills the screen, legend sits beside it on desktop, timeline along the bottom. */
+.season {
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 300px);
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    'map side'
+    'time time';
+  height: 100%;
+}
+
+.season__map {
+  grid-area: map;
+  position: relative;
+  min-height: 0;
+  background: var(--paper-sunk);
+}
+.season__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.season__side {
+  grid-area: side;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  border-left: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.season__tools,
+.season__dropped {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: var(--fs-sm);
+}
+.season__tools {
+  top: var(--sp-3);
+  left: var(--sp-3);
+  right: var(--sp-3);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--sp-3));
+  padding: var(--sp-2);
+}
+.season__basemap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.season__rule {
+  margin: var(--sp-4) 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+.season__tools select {
+  min-height: 36px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.season__dropped {
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90%, 420px);
+  border-color: var(--rule-strong);
+  background-image: repeating-linear-gradient(45deg, transparent 0 6px, var(--paper-sunk) 6px 8px);
+}
+
+.season__nowebgl,
+.season__loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.skeleton-row {
+  height: 28px;
+  margin-bottom: var(--sp-2);
+  border-radius: var(--radius);
+  background: var(--paper-sunk);
+}
+
+/* MapLibre controls in instrument style */
+.maplibregl-ctrl-group {
+  border-radius: var(--radius) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--rule-strong);
+}
+.maplibregl-ctrl-group button {
+  width: var(--tap) !important;
+  height: var(--tap) !important;
+}
+
+/* Phones: map gets most of the first screen, timeline sits right under it in thumb reach,
+   legend and counts follow when you scroll. */
+@media (max-width: 860px) {
+  .season {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 58vh auto auto;
+    grid-template-areas:
+      'map'
+      'time'
+      'side';
+    height: auto;
+  }
+  .season__side {
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+/* MapLibre's own focus style is a blue glow; use the app's ring so every control looks the same. */
+.maplibregl-ctrl-group button:focus-visible,
+.maplibregl-ctrl-attrib-button:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--radar);
+  outline-offset: 2px;
+}
+
+/* Phones: one row that scrolls sideways, so the tools never cover the map. Nothing is removed.
+   The group label is hidden visually only; screen readers still announce it. */
+@media (max-width: 560px) {
+  .season__tools {
+    left: var(--sp-2);
+    right: var(--sp-2);
+    flex-wrap: nowrap;
+    width: auto;
+    max-width: none;
+    overflow-x: auto;
+    padding: var(--sp-1) var(--sp-2);
+    scrollbar-width: thin;
+  }
+  .season__tools .layer-switch__legend {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .season__tools .layer-switch__opts,
+  .season__basemap {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+  .season__basemap label {
+    white-space: nowrap;
+  }
+}

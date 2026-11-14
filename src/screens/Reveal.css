@@ -1,0 +1,66 @@
+/* Editorial landing: serif headline on the left, the comparison as the focal point on the right. */
+.reveal {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: var(--sp-7);
+  align-items: center;
+  max-width: 1240px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5);
+}
+
+.reveal__headline {
+  font-family: var(--font-story);
+  font-size: var(--fs-display);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.reveal__lede {
+  max-width: 34rem;
+  margin-top: var(--sp-4);
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.reveal__ruler {
+  max-width: 26rem;
+  margin-top: var(--sp-5);
+}
+.reveal__rulernote {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.reveal__cta {
+  margin-top: var(--sp-5);
+  padding: 0 var(--sp-5);
+  font-size: var(--fs-md);
+}
+.reveal__sim {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.reveal__compare {
+  width: 100%;
+  max-width: 640px;
+  justify-self: center;
+}
+
+@media (max-width: 860px) {
+  .reveal {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-5);
+    padding: var(--sp-4);
+  }
+  /* On phones the picture comes first: it is the argument, the text explains it. */
+  .reveal__compare {
+    order: -1;
+  }
+}

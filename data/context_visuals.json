@@ -1,0 +1,31 @@
+{
+  "reveal_date": "2026-09-26",
+  "optical_file": "images/smoke_reveal.png",
+  "radar_file": "images/radar_2026-09-26.png",
+  "bounds": [
+    [
+      113.75,
+      -1.75
+    ],
+    [
+      114.25,
+      -1.75
+    ],
+    [
+      114.25,
+      -2.25
+    ],
+    [
+      113.75,
+      -2.25
+    ]
+  ],
+  "bbox": [
+    113.75,
+    -2.25,
+    114.25,
+    -1.75
+  ],
+  "source": "VIIRS_SNPP_CorrectedReflectance_TrueColor (2026-09-26)",
+  "sentinel1_contrast": null
+}

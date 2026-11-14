@@ -8,9 +8,10 @@ geometry (track, frame, flightDirection), inspects HDF5 groups to locate the
 Scales coherence to integers [0, 100] (nullable Int64) with exact length
 len(dates) - 1 per cell for bundle/series.json. Intervals touching a dropped
 date are set to null. When EARTHDATA_TOKEN is absent or a GUNW pair is missing
-for an interval (e.g., provisional backlog or 36-day gap), falls back to a
-cell-level spatial/radiometric stability coherence proxy from gcov_cube.zarr
-and records the exact source per interval in coherence_report.json.
+for an interval (e.g., provisional backlog or 36-day gap), the interval is null
+(source "no_gunw_pair"). A GCOV brightness proxy exists for testing behind
+--allow-proxy; it is not interferometric coherence and must never be exported.
+The exact source per interval is recorded in coherence_report.json.
 
 Explicitly excludes phase unwrapping and LOS ground-motion displacement.
 """
@@ -410,8 +411,14 @@ def compute_coherence_table(
     study_box: list[float] | None = None,
     token: str = "",
     offline: bool = False,
+    allow_proxy: bool = False,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Compute per-cell, per-interval coherence (length len(dates) - 1) and report."""
+    """Compute per-cell, per-interval coherence (length len(dates) - 1) and report.
+
+    Without a real GUNW pair the interval is null. The GCOV brightness proxy is not interferometric
+    coherence, so it is used only with allow_proxy=True (testing); the report then says proxy_used
+    and 08_export must refuse it.
+    """
     n_cells = len(grid_df)
     n_intervals = max(0, len(dates) - 1)
     if n_intervals == 0 or n_cells == 0:
@@ -504,7 +511,8 @@ def compute_coherence_table(
 
         if not used_gunw:
             if (
-                cube is not None
+                allow_proxy
+                and cube is not None
                 and cell_map_gcov is not None
                 and total_px_gcov is not None
                 and d0 in cube_dates
@@ -524,7 +532,7 @@ def compute_coherence_table(
                 counts_mat[:, k] = px_counts
                 src = "gcov_radiometric_fallback"
             else:
-                src = "missing_data"
+                src = "no_gunw_pair"
 
         sources_per_interval.append(src)
         valid_vals = coh_mat[np.isfinite(coh_mat[:, k]), k]
@@ -584,6 +592,7 @@ def compute_coherence_table(
         "n_cells": n_cells,
         "gunw_scenes_found": len(gunw_scenes or []),
         "gunw_layers_inspected": inspected_layers,
+        "proxy_used": "gcov_radiometric_fallback" in sources_per_interval,
         "per_interval": per_interval_reports,
     }
     return coh_df, report
@@ -693,8 +702,10 @@ def run_self_test() -> int:
         stats_mod=stats_mod,
         cube=cube,
         offline=True,
+        allow_proxy=True,
     )
     print_coherence_summary(report)
+    assert report["proxy_used"] is True
 
     assert len(coh_df) == 100 * (len(dates) - 1)
     ok_rows = coh_df[coh_df["interval_idx"] == 0]
@@ -719,7 +730,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--selected-scenes", type=Path, default=PROJECT_ROOT / "data/selected_scenes.json")
     parser.add_argument("--out-coherence", type=Path, default=PROJECT_ROOT / "data/coherence.parquet")
     parser.add_argument("--out-report", type=Path, default=PROJECT_ROOT / "data/coherence_report.json")
-    parser.add_argument("--offline", action="store_true", help="Skip ASF query and use GCOV fallback directly.")
+    parser.add_argument("--offline", action="store_true", help="Skip the ASF GUNW query (intervals without GUNW stay null).")
+    parser.add_argument(
+        "--allow-proxy", action="store_true",
+        help="Testing only: fill intervals without GUNW with the GCOV brightness proxy (not real coherence).",
+    )
     parser.add_argument("--self-test", action="store_true", help="Run built-in unit verification.")
     return parser.parse_args(argv)
 
@@ -775,8 +790,11 @@ def main(argv: list[str] | None = None) -> int:
         study_box=study_box,
         token=token,
         offline=args.offline,
+        allow_proxy=args.allow_proxy,
     )
     report["geometry_used"] = geometry
+    if report["proxy_used"]:
+        print("[WARN] --allow-proxy: GCOV brightness proxy written as coherence. Testing only; do not export.", file=sys.stderr)
 
     out_coh = _resolve_path(args.out_coherence)
     out_rep = _resolve_path(args.out_report)

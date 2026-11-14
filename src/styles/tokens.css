@@ -1,0 +1,103 @@
+/*
+  Design tokens. Direction: a field instrument on field paper (dials ENERGY 2 / RHYTHM 2 / MOTION 1).
+  Paper has a green-grey cast (PRD 9) so the page reads as a notebook, not a SaaS white.
+  One accent, deep teal "radar", only on things you can press and on the current-pass marker.
+  Text pairs checked with the antislop contrast tool (see docs/LOG.md).
+*/
+:root {
+  color-scheme: light;
+
+  /* surfaces and ink */
+  --paper: #eef1ec;
+  --paper-raised: #f8faf7;
+  --paper-sunk: #e2e7e0;
+  --ink: #1b2420;
+  --ink-soft: #56635c;
+  --rule: #c5cdc6;
+  --rule-strong: #8f9b93;
+
+  /* accent: the radar */
+  --radar: #0e6b6b;
+  --radar-ink: #ffffff;
+  --radar-tint: #d4e6e3;
+
+  /* state colours (PRD 9). Hue and lightness both step, so order survives colour-blindness. */
+  --s-stable: #8a9a84;
+  --s-drying: #e0a526;
+  --s-deep: #c2571a;
+  --s-fire: #c81e1e;
+  --s-burned: #4a3328;
+  --s-rewet: #1c78b0;
+  --s-nodata: #d5d8d4;
+  --s-nodata-hatch: #a4aaa5;
+  --on-drying: #4a2e00;
+
+  /* map context */
+  --canal: #6f6a5c;
+  --river: #4f7f96;
+
+  /* type */
+  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-num: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-story: 'IBM Plex Serif', Georgia, serif;
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.75rem;
+  --fs-display: clamp(2rem, 5vw, 3.5rem);
+
+  /* space: 4px base, steps chosen for a dense but outdoor-readable instrument */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+
+  --radius: 2px;
+  --tap: 44px;
+  --header-h: 56px;
+  --shadow-panel: 0 2px 10px rgb(20 30 25 / 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --paper: #141a17;
+    --paper-raised: #1d2521;
+    --paper-sunk: #0f1412;
+    --ink: #e3e8e4;
+    --ink-soft: #9aa89f;
+    --rule: #2f3a34;
+    --rule-strong: #56635c;
+    --radar: #5fb8b3;
+    --radar-ink: #0b1513;
+    --radar-tint: #1d3633;
+    --s-nodata: #3a413d;
+    --s-nodata-hatch: #5c645f;
+    --canal: #8d8774;
+    --river: #6c9db4;
+    --shadow-panel: 0 2px 12px rgb(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #141a17;
+  --paper-raised: #1d2521;
+  --paper-sunk: #0f1412;
+  --ink: #e3e8e4;
+  --ink-soft: #9aa89f;
+  --rule: #2f3a34;
+  --rule-strong: #56635c;
+  --radar: #5fb8b3;
+  --radar-ink: #0b1513;
+  --radar-tint: #1d3633;
+  --s-nodata: #3a413d;
+  --s-nodata-hatch: #5c645f;
+  --canal: #8d8774;
+  --river: #6c9db4;
+  --shadow-panel: 0 2px 12px rgb(0 0 0 / 0.5);
+}

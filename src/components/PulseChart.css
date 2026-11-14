@@ -1,0 +1,72 @@
+.pulse-chart {
+  margin: 0;
+}
+.pulse-chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: pan-y;
+}
+
+.pulse-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+.pulse-chart__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.key {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+}
+.key--main { border-top: 2.5px solid var(--ink); height: 0; }
+.key--other { border-top: 2px dashed var(--ink-soft); height: 0; }
+.key--band { background: var(--radar-tint); border: 1px solid var(--rule-strong); }
+.key--coh { border-top: 2.5px solid var(--radar); height: 0; }
+.key--rain { background: var(--river); width: 8px; }
+
+.pulse-chart__grid { stroke: var(--rule); stroke-width: 1; }
+.pulse-chart__zero { stroke: var(--rule-strong); stroke-width: 1; }
+.pulse-chart__band { fill: var(--radar-tint); stroke: none; }
+/* Lines in ink, not state colours: the line is a measurement, colour is reserved for states. */
+.pulse-chart__main { fill: none; stroke: var(--ink); stroke-width: 2.25; stroke-linejoin: round; }
+.pulse-chart__other { fill: none; stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.pulse-chart__dot { fill: var(--ink); stroke: var(--paper-raised); stroke-width: 1.5; }
+.pulse-chart__coh { stroke: var(--radar); stroke-width: 2.5; stroke-linecap: round; }
+.pulse-chart__rain { fill: var(--river); }
+.pulse-chart__fire { fill: var(--s-fire); stroke: var(--paper-raised); stroke-width: 1.5; }
+.pulse-chart__fire--silent { fill: var(--paper-raised); stroke: var(--s-fire); stroke-width: 2.5; }
+.pulse-chart__now { stroke: var(--radar); stroke-width: 2; }
+
+.pulse-chart__tick,
+.pulse-chart__axis,
+.pulse-chart__drop {
+  font-family: var(--font-num);
+  font-size: 11px;
+  fill: var(--ink-soft);
+}
+.pulse-chart__axis {
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+.pulse-chart__drop {
+  font-style: italic;
+}
+
+.pulse-chart__readout {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+.pulse-chart__readout strong {
+  color: var(--ink);
+}

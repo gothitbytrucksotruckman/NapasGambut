@@ -1,0 +1,101 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.shell__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: var(--header-h);
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+  flex-wrap: wrap;
+}
+
+.shell__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  white-space: nowrap;
+}
+.shell__title {
+  font-family: var(--font-story);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.shell__sub {
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  font-style: italic;
+}
+
+/* Persistent, cannot be hidden (PRD rule 3). Hatch echoes the no-data pattern: "not real". */
+.sim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--on-drying);
+  border-radius: var(--radius);
+  background: var(--s-drying);
+  color: var(--on-drying);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shell__nav {
+  display: flex;
+  gap: var(--sp-1);
+  margin-left: auto;
+  overflow-x: auto;
+}
+.shell__nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--sp-3);
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.shell__nav a:hover {
+  color: var(--ink);
+}
+.shell__nav a[aria-current='page'] {
+  color: var(--ink);
+  border-bottom-color: var(--radar);
+}
+
+.shell__main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.shell__prefs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 720px) {
+  .shell__bar {
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3);
+  }
+  .shell__nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+  .shell__prefs {
+    margin-left: auto;
+  }
+}
