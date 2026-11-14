@@ -1,0 +1,38 @@
+# Central Kalimantan peatland focus area [min_lon, min_lat, max_lon, max_lat] (EPSG:4326)
+study_box: [113.75, -2.25, 114.25, -1.75]
+fallback_sumatra_box: [104.20, -2.90, 104.70, -2.40]
+reference_forest_box: [113.76, -1.95, 113.92, -1.78]
+
+# Grid & statistical thresholds
+cell_size_m: 500
+fallback_cell_size_m: 1000
+sigma_threshold: 2.0
+headline_sigma: 3.0
+deep_drying_sigma: 4.0
+min_valid_fraction: 0.5
+reference_min_cells: 200
+
+# Search window & viewing geometry constraints
+start_date: "2026-06-01T00:00:00Z"
+end_date: "2026-11-15T23:59:59Z"
+track: null
+frame: null
+flightDirection: null
+expected_mode: "2005"
+expected_pol_prefix: "DH"
+min_dates_gate: 8
+
+# Quality control & rendering range
+qc_max_ref_jump_db: 1.50
+max_noise_floor_db: 0.50
+radar_png_db_range: [-22.0, -4.0]
+
+# Local output paths
+census_csv: "data/census.csv"
+selected_scenes_json: "data/selected_scenes.json"
+batch_a_zarr: "data/cube_batch_a.zarr"
+batch_b_zarr: "data/cube_batch_b.zarr"
+merged_cube_zarr: "data/gcov_cube.zarr"
+qc_report_json: "data/qc_report.json"
+bundle_dir: "bundle"
+images_dir: "bundle/images"

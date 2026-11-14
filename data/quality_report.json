@@ -1,0 +1,254 @@
+{
+  "epsg": 32749,
+  "min_valid_fraction": 0.5,
+  "bbox_wgs84": [
+    113.749261,
+    -2.249979,
+    114.250884,
+    -1.750166
+  ],
+  "bounds": [
+    [
+      113.749261,
+      -1.750166
+    ],
+    [
+      114.250884,
+      -1.750166
+    ],
+    [
+      114.250884,
+      -2.249979
+    ],
+    [
+      113.749261,
+      -2.249979
+    ]
+  ],
+  "image_bounds": [
+    [
+      113.749261,
+      -1.750166
+    ],
+    [
+      114.250884,
+      -1.750166
+    ],
+    [
+      114.250884,
+      -2.249979
+    ],
+    [
+      113.749261,
+      -2.249979
+    ]
+  ],
+  "total_dates": 10,
+  "kept_dates": [
+    "2026-06-22",
+    "2026-07-04",
+    "2026-07-16",
+    "2026-08-21",
+    "2026-09-02",
+    "2026-09-14",
+    "2026-09-26",
+    "2026-10-08",
+    "2026-10-20",
+    "2026-11-01"
+  ],
+  "dropped_dates": [],
+  "radar_images": [
+    {
+      "date": "2026-06-22",
+      "file": "images/radar_2026-06-22.png"
+    },
+    {
+      "date": "2026-07-04",
+      "file": "images/radar_2026-07-04.png"
+    },
+    {
+      "date": "2026-07-16",
+      "file": "images/radar_2026-07-16.png"
+    },
+    {
+      "date": "2026-08-21",
+      "file": "images/radar_2026-08-21.png"
+    },
+    {
+      "date": "2026-09-02",
+      "file": "images/radar_2026-09-02.png"
+    },
+    {
+      "date": "2026-09-14",
+      "file": "images/radar_2026-09-14.png"
+    },
+    {
+      "date": "2026-09-26",
+      "file": "images/radar_2026-09-26.png"
+    },
+    {
+      "date": "2026-10-08",
+      "file": "images/radar_2026-10-08.png"
+    },
+    {
+      "date": "2026-10-20",
+      "file": "images/radar_2026-10-20.png"
+    },
+    {
+      "date": "2026-11-01",
+      "file": "images/radar_2026-11-01.png"
+    }
+  ],
+  "dates_summary": [
+    {
+      "date": "2026-06-22",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.089,
+      "p98_db": -6.101,
+      "median_hh_db": -8.695,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-06-22.png"
+    },
+    {
+      "date": "2026-07-04",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.092,
+      "p98_db": -6.101,
+      "median_hh_db": -8.698,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-07-04.png"
+    },
+    {
+      "date": "2026-07-16",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.088,
+      "p98_db": -6.101,
+      "median_hh_db": -8.695,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-07-16.png"
+    },
+    {
+      "date": "2026-08-21",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.095,
+      "p98_db": -6.101,
+      "median_hh_db": -8.693,
+      "std_hh_db": 2.737,
+      "png_file": "images/radar_2026-08-21.png"
+    },
+    {
+      "date": "2026-09-02",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.087,
+      "p98_db": -6.101,
+      "median_hh_db": -8.694,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-09-02.png"
+    },
+    {
+      "date": "2026-09-14",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.089,
+      "p98_db": -6.101,
+      "median_hh_db": -8.695,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-09-14.png"
+    },
+    {
+      "date": "2026-09-26",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.092,
+      "p98_db": -6.101,
+      "median_hh_db": -8.698,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-09-26.png"
+    },
+    {
+      "date": "2026-10-08",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.088,
+      "p98_db": -6.101,
+      "median_hh_db": -8.695,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-10-08.png"
+    },
+    {
+      "date": "2026-10-20",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.095,
+      "p98_db": -6.101,
+      "median_hh_db": -8.693,
+      "std_hh_db": 2.737,
+      "png_file": "images/radar_2026-10-20.png"
+    },
+    {
+      "date": "2026-11-01",
+      "status": "ok",
+      "valid_fraction": 1.0,
+      "valid_pixels": 7697668,
+      "total_pixels": 7697668,
+      "reason": null,
+      "reason_en": null,
+      "reason_id": null,
+      "p2_db": -16.087,
+      "p98_db": -6.101,
+      "median_hh_db": -8.694,
+      "std_hh_db": 2.736,
+      "png_file": "images/radar_2026-11-01.png"
+    }
+  ]
+}
