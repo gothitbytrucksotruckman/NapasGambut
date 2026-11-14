@@ -1,0 +1,35 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.netrc
+_netrc
+
+# Data
+data/
+
+# Node / Frontend
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Heavy intermediate satellite data
+data/*.h5
+data/*.nc
+data/*.tif
+data/*.zarr/
+data/parts_batch_*/
+data/qc_report.json
+docs/references/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
