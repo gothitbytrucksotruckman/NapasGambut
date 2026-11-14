@@ -1,5 +1,4 @@
 import argparse
-import ast
 from collections import defaultdict
 import csv
 from datetime import date
@@ -7,59 +6,20 @@ import json
 import os
 from pathlib import Path
 import time
-
-try:
-    import yaml
-except ImportError:
-    yaml = None
+import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
 
-def _load_yaml_fallback(text):
-    root = {}
-    section = None
-    for raw in text.splitlines():
-        line = raw.split("#", 1)[0].rstrip()
-        if not line.strip():
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        k, _, v = line.strip().partition(":")
-        k, v = k.strip(), v.strip()
-        if indent == 0 and not v:
-            section = {}
-            root[k] = section
-            continue
-        if v in ("null", "None", "~", ""):
-            val = None
-        elif v in ("true", "True"):
-            val = True
-        elif v in ("false", "False"):
-            val = False
-        else:
-            try:
-                val = ast.literal_eval(v)
-            except (ValueError, SyntaxError):
-                val = v
-        target = section if (indent > 0 and section is not None) else root
-        target[k] = val
-    return root
-
-
 def load_config(config_path=DEFAULT_CONFIG_PATH):
-    text = Path(config_path).read_text(encoding="utf-8")
-    if yaml is not None:
-        return yaml.safe_load(text)
-    return _load_yaml_fallback(text)
+    with Path(config_path).open("r", encoding="utf-8") as fh:
+        return yaml.safe_load(fh)
 
 
 def bbox_to_wkt(bbox):
     minx, miny, maxx, maxy = bbox
-    return (
-        f"POLYGON(({minx} {miny}, {maxx} {miny}, "
-        f"{maxx} {maxy}, {minx} {maxy}, {minx} {miny}))"
-    )
+    return f"POLYGON(({minx} {miny}, {maxx} {miny}, {maxx} {maxy}, {minx} {maxy}, {minx} {miny}))"
 
 
 def parse_gcov_filename(filename, url=""):
@@ -76,8 +36,6 @@ def parse_gcov_filename(filename, url=""):
     crid = parts[13]
     accuracy = parts[14]
 
-    # Real NISAR L2 GCOV filenames have 18 tokens:
-    # ..._<Start>_<End>_<CRID>_<Accuracy>_<Coverage:F/P>_<Center:J>_<Counter>.h5
     if len(parts) >= 18:
         coverage = parts[15]
         counter_str = parts[17]
@@ -227,6 +185,52 @@ def evaluate_census_and_assign_batches(
     }
 
 
+def get_earthdata_token():
+    token = os.environ.get("EARTHDATA_TOKEN") or os.environ.get("EDL_TOKEN")
+    if token:
+        return token.strip()
+    for env_path in (PROJECT_ROOT / ".env", Path.home() / ".env"):
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("EARTHDATA_TOKEN="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
+
+
+def query_asf_gcov_scenes(
+    bbox_wgs84,
+    start="2026-06-01T00:00:00Z",
+    end="2026-11-15T23:59:59Z",
+    flight_direction=None,
+    production_configuration=None,
+):
+    import asf_search as asf
+
+    params = {
+        "dataset": getattr(asf.DATASET, "NISAR", "NISAR"),
+        "processingLevel": getattr(asf.PRODUCT_TYPE, "GCOV", "GCOV"),
+        "intersectsWith": bbox_to_wkt(bbox_wgs84),
+        "start": start,
+        "end": end,
+    }
+    if flight_direction:
+        params["flightDirection"] = flight_direction
+    if production_configuration:
+        params["productionConfiguration"] = production_configuration
+
+    opts = asf.ASFSearchOptions(**params)
+    response = asf.search(opts=opts)
+    urls = response.find_urls(extension=".h5", directAccess=False)
+
+    records = []
+    for u in urls:
+        parsed = parse_gcov_filename(Path(u).name, url=u)
+        if parsed:
+            records.append(parsed)
+    return records
+
+
+# AI-generated (lines 234-348)
 def generate_synthetic_census_records():
     timestamps = [
         "20260620T112233",
@@ -248,27 +252,6 @@ def generate_synthetic_census_records():
         if rec:
             out.append(rec)
     return out
-
-
-def get_earthdata_token():
-    token = os.environ.get("EARTHDATA_TOKEN") or os.environ.get("EDL_TOKEN")
-    if token:
-        return token.strip()
-    for env_path in (PROJECT_ROOT / ".env", Path.home() / ".env"):
-        if env_path.exists():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                if line.startswith("EARTHDATA_TOKEN="):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
-    try:
-        import earthaccess
-
-        auth = earthaccess.login(strategy="all")
-        if auth and getattr(auth, "authenticated", False):
-            tok = auth.token
-            return str(tok.get("access_token", "")) if isinstance(tok, dict) else str(tok)
-    except Exception:
-        pass
-    return ""
 
 
 def resolve_signed_s3_url(url, token):
@@ -340,39 +323,6 @@ def benchmark_single_scene(url, study_box, token="", dry_run=False):
     }
 
 
-def query_asf_gcov_scenes(
-    bbox_wgs84,
-    start="2026-06-01T00:00:00Z",
-    end="2026-11-15T23:59:59Z",
-    flight_direction=None,
-    production_configuration=None,
-):
-    import asf_search as asf
-
-    params = {
-        "dataset": getattr(asf.DATASET, "NISAR", "NISAR"),
-        "processingLevel": getattr(asf.PRODUCT_TYPE, "GCOV", "GCOV"),
-        "intersectsWith": bbox_to_wkt(bbox_wgs84),
-        "start": start,
-        "end": end,
-    }
-    if flight_direction:
-        params["flightDirection"] = flight_direction
-    if production_configuration:
-        params["productionConfiguration"] = production_configuration
-
-    opts = asf.ASFSearchOptions(**params)
-    response = asf.search(opts=opts)
-    urls = response.find_urls(extension=".h5", directAccess=False)
-
-    records = []
-    for u in urls:
-        parsed = parse_gcov_filename(Path(u).name, url=u)
-        if parsed:
-            records.append(parsed)
-    return records
-
-
 def format_summary_table(evaluation, active_bbox):
     geom = evaluation["selected_geometry"] or {}
     bench = evaluation.get("benchmark", {})
@@ -396,6 +346,7 @@ def format_summary_table(evaluation, active_bbox):
             f"{s['coverage']:<3} {s['version']:<10} {s['batch']:<5}"
         )
     return "\n".join(lines)
+# End AI-generated (lines 234-348)
 
 
 def write_census_outputs(all_records, evaluation, cfg, active_bbox):
@@ -493,7 +444,7 @@ def run_census(cfg, dry_run=False):
 def main():
     parser = argparse.ArgumentParser(description="Search and filter NISAR L2 GCOV scenes.")
     parser.add_argument("--config", type=str, default=str(DEFAULT_CONFIG_PATH))
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--dry-run", "--self-test", dest="dry_run", action="store_true")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
