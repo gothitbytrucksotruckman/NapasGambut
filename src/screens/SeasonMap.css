@@ -1,0 +1,114 @@
+/* Map first (PRD 9): map fills the screen, legend sits beside it on desktop, timeline along the bottom. */
+.season {
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 300px);
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    'map side'
+    'time time';
+  height: 100%;
+}
+
+.season__map {
+  grid-area: map;
+  position: relative;
+  min-height: 0;
+  background: var(--paper-sunk);
+}
+.season__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.season__side {
+  grid-area: side;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  border-left: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.season__tools,
+.season__selected,
+.season__dropped {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: var(--fs-sm);
+}
+.season__tools {
+  top: var(--sp-3);
+  left: var(--sp-3);
+}
+.season__tools select {
+  min-height: 36px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.season__selected {
+  bottom: var(--sp-3);
+  left: var(--sp-3);
+}
+.season__dropped {
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90%, 420px);
+  border-color: var(--rule-strong);
+  background-image: repeating-linear-gradient(45deg, transparent 0 6px, var(--paper-sunk) 6px 8px);
+}
+
+.season__nowebgl,
+.season__loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.skeleton-row {
+  height: 28px;
+  margin-bottom: var(--sp-2);
+  border-radius: var(--radius);
+  background: var(--paper-sunk);
+}
+
+/* MapLibre controls in instrument style */
+.maplibregl-ctrl-group {
+  border-radius: var(--radius) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--rule-strong);
+}
+.maplibregl-ctrl-group button {
+  width: var(--tap) !important;
+  height: var(--tap) !important;
+}
+
+/* Phones: map gets most of the first screen, timeline sits right under it in thumb reach,
+   legend and counts follow when you scroll. */
+@media (max-width: 860px) {
+  .season {
+    grid-template-columns: 1fr;
+    grid-template-rows: 58vh auto auto;
+    grid-template-areas:
+      'map'
+      'time'
+      'side';
+    height: auto;
+  }
+  .season__side {
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+}
