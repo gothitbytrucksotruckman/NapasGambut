@@ -32,3 +32,6 @@ docs/references/*.pdf
 # OS
 .DS_Store
 Thumbs.db
+
+# Docs
+/docs/superpowers/
