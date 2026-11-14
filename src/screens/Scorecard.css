@@ -1,0 +1,107 @@
+/* Field report: one wide table, two action lists side by side, then the four checks. */
+.score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-6) var(--sp-6);
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5) var(--sp-7);
+}
+.score__head,
+.score__block--wide {
+  grid-column: 1 / -1;
+}
+.score__head h1 {
+  font-family: var(--font-story);
+  font-size: var(--fs-xl);
+}
+.score__head p {
+  margin-top: var(--sp-2);
+  color: var(--ink-soft);
+}
+
+.score__block h2 {
+  padding-bottom: var(--sp-2);
+  border-bottom: 2px solid var(--ink);
+  font-size: var(--fs-lg);
+}
+.score__note {
+  margin: var(--sp-2) 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+.score__empty {
+  padding: var(--sp-4) 0;
+  color: var(--ink-soft);
+}
+
+.score__scroll {
+  overflow-x: auto;
+}
+.score__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.score__table th,
+.score__table td {
+  padding: var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: middle;
+}
+.score__table thead th {
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  vertical-align: bottom;
+}
+.score__table tbody th {
+  font-weight: 600;
+}
+.score__table .r {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Cell ids are links into the map: look like a control, keep the tap target. */
+.score__cell {
+  min-height: var(--tap);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--radar);
+  font-weight: 600;
+}
+.score__cell:hover {
+  border-color: var(--radar);
+}
+.score__cell:active {
+  background: var(--radar-tint);
+}
+
+.score__tests {
+  margin: var(--sp-3) 0 0;
+  padding-left: var(--sp-5);
+}
+.score__tests li {
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.score__test {
+  font-family: var(--font-story);
+  font-size: var(--fs-md);
+}
+.score__testnote {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+@media (max-width: 860px) {
+  .score {
+    grid-template-columns: 1fr;
+    padding: var(--sp-4);
+  }
+}
