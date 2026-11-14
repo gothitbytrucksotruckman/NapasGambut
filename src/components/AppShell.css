@@ -79,6 +79,12 @@
   overflow-y: auto;
 }
 
+.shell__prefs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
 @media (max-width: 720px) {
   .shell__bar {
     gap: var(--sp-2);
@@ -89,7 +95,7 @@
     width: 100%;
     margin-left: 0;
   }
-  .shell__lang {
+  .shell__prefs {
     margin-left: auto;
   }
 }

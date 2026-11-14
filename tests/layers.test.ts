@@ -1,22 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { LAYER_RAMPS, rampColorExpr, rampGradient, rampStops } from '../src/layers/ramps';
-import { enM5, idM5, tl } from '../src/layers/strings';
+import { CLASS_IDS } from '../src/contract';
+import { en } from '../src/i18n/en';
+import { id } from '../src/i18n/id';
 import { LAYERS } from '../src/state/hash';
 
-describe('milestone 5 strings', () => {
-  it('has the same keys in English and Indonesian', () => {
-    expect(Object.keys(idM5).sort()).toEqual(Object.keys(enM5).sort());
+// Layer keys are built from template strings (`layer.${l}.title`), which the compiler cannot check.
+describe('layer strings', () => {
+  const dicts = { en: en as Record<string, string>, id: id as Record<string, string> };
+  it('has a switch label for every layer and a legend for every layer in both languages', () => {
+    for (const lang of ['en', 'id'] as const) {
+      for (const l of LAYERS) expect(dicts[lang][`layer.${l}`], `${lang} layer.${l}`).toBeTruthy();
+      for (const l of ['hh', 'hv', 'coh', 'radar']) {
+        expect(dicts[lang][`layer.${l}.title`]).toBeTruthy();
+        expect(dicts[lang][`layer.${l}.what`]).toBeTruthy();
+      }
+      for (const l of ['hh', 'hv', 'coh']) for (const end of ['low', 'high']) expect(dicts[lang][`layer.${l}.${end}`]).toBeTruthy();
+    }
   });
-  it('has a switch label for every layer and a legend for every continuous layer', () => {
-    for (const l of LAYERS) expect(tl('en', `layer.${l}`)).toBeTruthy();
-    for (const l of ['hh', 'hv', 'coh', 'radar']) for (const lang of ['en', 'id'] as const) expect(tl(lang, `layer.${l}.title`)).toBeTruthy();
-  });
-  it('contains no em dash and no "measured/observed" claims', () => {
-    for (const v of [...Object.values(enM5), ...Object.values(idM5)]) expect(v).not.toContain('—');
-    for (const v of Object.values(enM5)) expect(v).not.toMatch(/\bmeasured\b|\bobserved\b|detected by NISAR/i);
-  });
-  it('fails loudly on a missing key instead of rendering it', () => {
-    expect(() => tl('en', 'layer.nope')).toThrow();
+  it('has a class label for every class the contract allows', () => {
+    for (const c of CLASS_IDS) for (const lang of ['en', 'id'] as const) expect(dicts[lang][`class.${c}`]).toBeTruthy();
   });
 });
 

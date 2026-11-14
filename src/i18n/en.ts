@@ -37,8 +37,6 @@ export const en = {
   'map.basemap': 'Background map',
   'map.basemap.osm': 'OpenStreetMap',
   'map.basemap.none': 'None',
-  'map.selected': 'Selected cell {id}', // unused since the pulse card; delete in M5-4
-  'map.clear': 'Clear selection', // unused; delete in M5-4
   'map.webgl': 'This browser cannot draw the map (WebGL is off or unsupported). The counts beside the legend still describe every cell.',
 
   'state.1': 'No data',
@@ -51,12 +49,6 @@ export const en = {
   'state.8': 'Stable',
 
   'lang.switch': 'Bahasa Indonesia',
-
-  // Stub screen strings: unused once the real screens are routed; delete in M5-4.
-  'stub.title': 'This screen is next in the build',
-  'stub.body': 'The season map is ready. Open it to watch the drought spread pass by pass.',
-  'stub.cta': 'Open the season map',
-
 
   // Pulse card (milestone 3)
   'pulse.title': 'Cell {id}',
@@ -198,6 +190,34 @@ export const en = {
   'method.future2': 'A 12-day watch through each dry season, sent to restoration teams while there is still time to close canals.',
   'method.future3': 'The same method for other tropical peat: the Congo Basin and the Peruvian Amazon.',
   'method.future4': "Pairing NISAR's L-band with its S-band radar, which is more sensitive to the canopy, to separate floor and furniture more cleanly.",
+
+  // Map layers and theme (milestone 5)
+  'layer.label': 'Map shows',
+  'layer.state': 'Condition',
+  'layer.hh': 'Wetness (HH)',
+  'layer.hv': 'Canopy (HV)',
+  'layer.coh': 'Coherence',
+  'layer.radar': 'Radar picture',
+  'layer.hh.title': 'Radar wetness index (HH)',
+  'layer.hh.what': 'Change since the first pass. Below zero means the peat surface is drier.',
+  'layer.hh.low': 'drier',
+  'layer.hh.high': 'wetter',
+  'layer.hv.title': 'Canopy index (HV)',
+  'layer.hv.what': 'Change since the first pass. A sharp drop usually means burned or cleared canopy.',
+  'layer.hv.low': 'less canopy',
+  'layer.hv.high': 'more canopy',
+  'layer.coh.title': 'Coherence',
+  'layer.coh.what': 'How alike the ground looked on this pass and the one before. Fire and heavy rain lower it.',
+  'layer.coh.low': 'changed',
+  'layer.coh.high': 'unchanged',
+  'layer.coh.first': 'Coherence compares two passes, so the first pass has none.',
+  'layer.radar.title': 'Radar picture',
+  'layer.radar.what': 'The simulated radar image for this pass. Bright is a strong echo (wet ground, buildings, forest); black is open water.',
+  'layer.clamp': 'Values beyond the ends of the bar use the end colour.',
+  'theme.label': 'Theme',
+  'theme.auto': 'Match device',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
 } as const;
 
 export type Key = keyof typeof en;

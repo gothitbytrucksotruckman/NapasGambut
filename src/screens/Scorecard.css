@@ -101,7 +101,8 @@
 
 @media (max-width: 860px) {
   .score {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr): a wide table must scroll inside its block, not stretch the column off-screen. */
+    grid-template-columns: minmax(0, 1fr);
     padding: var(--sp-4);
   }
 }

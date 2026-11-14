@@ -6,8 +6,14 @@ import { Legend } from '../components/Legend';
 import { Timeline } from '../components/Timeline';
 import { droppedReason, isDropped } from '../data/selectors';
 import { formatDate, t } from '../i18n';
+import { LayerSwitch } from '../layers/LayerSwitch';
+import { addRadarLayer, applyValues, fillColorFor, showRadar } from '../layers/mapLayers';
+import { RampLegend } from '../layers/RampLegend';
+import type { RampLayer } from '../layers/ramps';
+import { cssVar } from '../data/states';
 import {
-  addHatchImage, applyStates, buildStyle, CELLS_FILL, hollowOpacityExpr, setHatchFilter, setSelected,
+  addHatchImage, applyStates, buildStyle, CELLS, CELLS_FILL, hollowOpacityExpr, repaint, setCellsVisible, setHatchFilter,
+  setSelected, stateColorExpr,
 } from '../map/layers';
 import { useApp } from '../state/store';
 import { PulseCard } from './PulseCard';
@@ -33,7 +39,17 @@ export function SeasonMap() {
   const mapRef = useRef<MLMap | null>(null);
   const [ready, setReady] = useState(false);
   const [webgl] = useState(hasWebGL);
-  const { lang, dateIndex, selectedCell, basemap } = state;
+  const { lang, dateIndex, selectedCell, basemap, layer } = state;
+  // Bumped when the theme changes, so map colours are re-read from the tokens.
+  const [themeTick, setThemeTick] = useState(0);
+  useEffect(() => {
+    const mo = new MutationObserver(() => setThemeTick((n) => n + 1));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    const onMq = () => setThemeTick((n) => n + 1);
+    mq.addEventListener('change', onMq);
+    return () => { mo.disconnect(); mq.removeEventListener('change', onMq); };
+  }, []);
 
   // Create the map once.
   useEffect(() => {
@@ -55,6 +71,7 @@ export function SeasonMap() {
     map.on('load', () => {
       addHatchImage(map);
       map.setPaintProperty(CELLS_FILL, 'fill-opacity', hollowOpacityExpr());
+      addRadarLayer(map, bundle, 'canals');
       setReady(true);
     });
     map.on('click', CELLS_FILL, (ev: MapLayerMouseEvent) => {
@@ -73,13 +90,30 @@ export function SeasonMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle, webgl]);
 
-  // Recolour on date change: feature-state only, the source is never rebuilt.
+  // Recolour on date or layer change: feature-state only, the source is never rebuilt.
+  // State codes always go in ("s": hollow fire outline, no-data hatch); continuous values go in as "v".
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     applyStates(map, bundle, dateIndex);
     setHatchFilter(map, bundle, dateIndex);
-  }, [ready, bundle, dateIndex]);
+    if (layer === 'hh' || layer === 'hv' || layer === 'coh') applyValues(map, bundle, layer, dateIndex, CELLS);
+    if (layer === 'radar') showRadar(map, bundle, dateIndex);
+  }, [ready, bundle, dateIndex, layer]);
+
+  // Layer and theme: swap the fill expression, show cells or the radar picture, re-read colour tokens.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const ramp = layer === 'hh' || layer === 'hv' || layer === 'coh';
+    const fill = ramp ? fillColorFor(layer, cssVar('--s-nodata')) : stateColorExpr();
+    repaint(map, fill);
+    // Ramps colour every cell by value; hollow fire and opacity tricks only belong to the state layer.
+    map.setPaintProperty(CELLS_FILL, 'fill-opacity', ramp ? 0.9 : hollowOpacityExpr());
+    map.setLayoutProperty('cells-silent', 'visibility', layer === 'state' ? 'visible' : 'none');
+    setCellsVisible(map, layer !== 'radar');
+    map.setLayoutProperty('radar-img', 'visibility', layer === 'radar' ? 'visible' : 'none');
+  }, [ready, layer, themeTick]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -121,15 +155,33 @@ export function SeasonMap() {
           </p>
         )}
         <div className="season__tools">
-          <label htmlFor="basemap">{t(lang, 'map.basemap')}</label>
-          <select id="basemap" value={basemap} onChange={(e) => dispatch({ type: 'setBasemap', basemap: e.target.value as 'osm' | 'none' })}>
-            <option value="osm">{t(lang, 'map.basemap.osm')}</option>
-            <option value="none">{t(lang, 'map.basemap.none')}</option>
-          </select>
+          <LayerSwitch layer={layer} lang={lang} onChange={(l) => dispatch({ type: 'setLayer', layer: l })} />
+          <div className="season__basemap">
+            <label htmlFor="basemap">{t(lang, 'map.basemap')}</label>
+            <select id="basemap" value={basemap} onChange={(e) => dispatch({ type: 'setBasemap', basemap: e.target.value as 'osm' | 'none' })}>
+              <option value="osm">{t(lang, 'map.basemap.osm')}</option>
+              <option value="none">{t(lang, 'map.basemap.none')}</option>
+            </select>
+          </div>
         </div>
         <PulseCard />
       </div>
       <aside className="season__side">
+        {layer !== 'state' && (
+          <>
+            {layer === 'radar' ? (
+              <section className="ramp-legend" aria-labelledby="ramp-h">
+                <h2 id="ramp-h" className="legend__title">{t(lang, 'layer.radar.title')}</h2>
+                <p className="ramp-legend__what">{t(lang, 'layer.radar.what')}</p>
+              </section>
+            ) : (
+              <RampLegend layer={layer as RampLayer} lang={lang} />
+            )}
+            {layer === 'coh' && dateIndex === 0 && <p className="ramp-legend__note">{t(lang, 'layer.coh.first')}</p>}
+            <hr className="season__rule" />
+          </>
+        )}
+        {/* Counts stay on every layer: they are the map's text alternative (PRD 11). */}
         <Legend title={t(lang, 'legend.title', { date: formatDate(date, lang) })} />
       </aside>
       <Timeline />

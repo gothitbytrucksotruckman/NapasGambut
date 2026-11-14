@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { t } from '../i18n';
+import { ThemeSwitch } from '../layers/ThemeSwitch';
 import { SCREENS, type Lang, type Screen } from '../state/hash';
 import './AppShell.css';
 
@@ -42,9 +43,12 @@ export function AppShell({ lang, dataKind, screen, onNavigate, onLang, children 
           </nav>
         )}
         {onLang && (
-          <button type="button" className="btn shell__lang" lang={lang === 'en' ? 'id' : 'en'} onClick={() => onLang(lang === 'en' ? 'id' : 'en')}>
-            {t(lang, 'lang.switch')}
-          </button>
+          <div className="shell__prefs">
+            <ThemeSwitch lang={lang} />
+            <button type="button" className="btn shell__lang" lang={lang === 'en' ? 'id' : 'en'} onClick={() => onLang(lang === 'en' ? 'id' : 'en')}>
+              {t(lang, 'lang.switch')}
+            </button>
+          </div>
         )}
       </header>
       <main className="shell__main">{children}</main>

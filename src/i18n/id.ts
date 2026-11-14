@@ -39,8 +39,6 @@ export const id: Record<Key, string> = {
   'map.basemap': 'Peta latar', // REVIEW
   'map.basemap.osm': 'OpenStreetMap',
   'map.basemap.none': 'Tidak ada',
-  'map.selected': 'Sel terpilih {id}', // unused; delete in M5-4
-  'map.clear': 'Hapus pilihan', // unused; delete in M5-4
   'map.webgl': 'Peramban ini tidak dapat menggambar peta (WebGL mati atau tidak didukung). Jumlah di samping legenda tetap menjelaskan setiap sel.', // REVIEW
 
   'state.1': 'Tidak ada data',
@@ -53,12 +51,6 @@ export const id: Record<Key, string> = {
   'state.8': 'Stabil',
 
   'lang.switch': 'English',
-
-  // Unused; delete in M5-4.
-  'stub.title': 'Layar ini menyusul berikutnya', // REVIEW
-  'stub.body': 'Peta musim sudah siap. Buka untuk melihat kekeringan menyebar dari lintasan ke lintasan.', // REVIEW
-  'stub.cta': 'Buka peta musim', // REVIEW
-
 
   // Pulse card (milestone 3)
   'pulse.title': 'Sel {id}',
@@ -200,4 +192,32 @@ export const id: Record<Key, string> = {
   'method.future2': 'Pemantauan setiap 12 hari sepanjang musim kemarau, dikirim ke tim restorasi selagi masih ada waktu untuk menutup kanal.', // REVIEW
   'method.future3': 'Metode yang sama untuk gambut tropis lain: Cekungan Kongo dan Amazon Peru.', // REVIEW
   'method.future4': 'Memadukan radar pita L NISAR dengan radar pita S-nya, yang lebih peka terhadap tajuk, untuk memisahkan lantai dan perabot dengan lebih bersih.', // REVIEW
+
+  // Map layers and theme (milestone 5)
+  'layer.label': 'Peta menampilkan', // REVIEW
+  'layer.state': 'Kondisi',
+  'layer.hh': 'Kebasahan (HH)', // REVIEW
+  'layer.hv': 'Tajuk (HV)', // REVIEW
+  'layer.coh': 'Koherensi', // REVIEW
+  'layer.radar': 'Citra radar', // REVIEW
+  'layer.hh.title': 'Indeks kebasahan radar (HH)', // REVIEW
+  'layer.hh.what': 'Perubahan sejak lintasan pertama. Di bawah nol berarti permukaan gambut lebih kering.', // REVIEW
+  'layer.hh.low': 'lebih kering',
+  'layer.hh.high': 'lebih basah',
+  'layer.hv.title': 'Indeks tajuk (HV)', // REVIEW
+  'layer.hv.what': 'Perubahan sejak lintasan pertama. Penurunan tajam biasanya berarti tajuk terbakar atau dibuka.', // REVIEW
+  'layer.hv.low': 'tajuk berkurang', // REVIEW
+  'layer.hv.high': 'tajuk bertambah', // REVIEW
+  'layer.coh.title': 'Koherensi', // REVIEW
+  'layer.coh.what': 'Seberapa mirip tanah pada lintasan ini dengan lintasan sebelumnya. Api dan hujan lebat menurunkannya.', // REVIEW
+  'layer.coh.low': 'berubah',
+  'layer.coh.high': 'tidak berubah',
+  'layer.coh.first': 'Koherensi membandingkan dua lintasan, jadi lintasan pertama tidak memilikinya.', // REVIEW
+  'layer.radar.title': 'Citra radar', // REVIEW
+  'layer.radar.what': 'Citra radar simulasi untuk lintasan ini. Terang berarti pantulan kuat (tanah basah, bangunan, hutan); hitam adalah air terbuka.', // REVIEW
+  'layer.clamp': 'Nilai di luar ujung batang memakai warna ujungnya.', // REVIEW
+  'theme.label': 'Tema',
+  'theme.auto': 'Ikuti perangkat', // REVIEW
+  'theme.light': 'Terang',
+  'theme.dark': 'Gelap',
 };

@@ -95,3 +95,38 @@ export function setHatchFilter(map: MLMap, b: Bundle, t: number) {
 export function setSelected(map: MLMap, id: string | null) {
   map.setFilter(CELLS_SELECTED, ['==', ['get', 'id'], id ?? '']);
 }
+
+/**
+ * Re-read every colour token after a theme change. MapLibre holds resolved colours, not CSS variables,
+ * so the paint properties are updated in place; the map, its sources and its feature-state stay as they are.
+ * `cellFill` is the current layer's fill expression (state colours or a ramp), rebuilt by the caller.
+ */
+export function repaint(map: MLMap, cellFill: FillColor) {
+  const dark = isDark();
+  map.setPaintProperty('paper', 'background-color', cssVar('--paper'));
+  map.setPaintProperty('basemap', 'raster-opacity', dark ? 0.25 : 0.45);
+  map.setPaintProperty(CELLS_FILL, 'fill-color', cellFill);
+  map.setPaintProperty('canals', 'line-color', cssVar('--canal'));
+  map.setPaintProperty('river', 'line-color', cssVar('--river'));
+  map.setPaintProperty('dams', 'circle-color', cssVar('--paper-raised'));
+  map.setPaintProperty('dams', 'circle-stroke-color', cssVar('--ink'));
+  map.setPaintProperty('town', 'circle-color', cssVar('--ink'));
+  map.setPaintProperty('town', 'circle-stroke-color', cssVar('--paper'));
+  map.setPaintProperty('cells-silent', 'line-color', cssVar('--s-fire'));
+  map.setPaintProperty(CELLS_SELECTED, 'line-color', cssVar('--ink'));
+  // Hatch pattern colour also follows the theme.
+  if (map.hasImage(HATCH_IMG)) {
+    const size = 8;
+    const data = new Uint8Array(size * size * 4);
+    const hex = cssVar('--s-nodata-hatch').replace('#', '');
+    const [r, g, bl] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if ((x + y) % size < 2) data.set([r, g, bl, 255], (y * size + x) * 4);
+    map.updateImage(HATCH_IMG, { width: size, height: size, data });
+  }
+}
+
+/** Show cells or the radar picture; context lines stay on top of both. */
+export function setCellsVisible(map: MLMap, visible: boolean) {
+  const v = visible ? 'visible' : 'none';
+  for (const id of [CELLS_FILL, CELLS_HATCH, 'cells-silent']) map.setLayoutProperty(id, 'visibility', v);
+}
