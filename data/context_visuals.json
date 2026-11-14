@@ -1,0 +1,58 @@
+{
+  "reveal_date": "2026-09-26",
+  "optical_file": "images/smoke_reveal.png",
+  "radar_file": "images/radar_2026-09-26.png",
+  "sentinel1_contrast_file": "images/sentinel1_contrast.png",
+  "bounds": [
+    [
+      113.75,
+      -1.75
+    ],
+    [
+      114.25,
+      -1.75
+    ],
+    [
+      114.25,
+      -2.25
+    ],
+    [
+      113.75,
+      -2.25
+    ]
+  ],
+  "bbox": [
+    113.75,
+    -2.25,
+    114.25,
+    -1.75
+  ],
+  "source": "VIIRS_SNPP_CorrectedReflectance_TrueColor (2026-09-26)",
+  "sentinel1_contrast": {
+    "early_date": "2026-06-22",
+    "late_date": "2026-09-26",
+    "sensors": {
+      "NISAR_L_band_24cm": {
+        "wavelength_cm": 24.0,
+        "frequency_ghz": 1.257,
+        "reference_forest_drift_db": -0.08,
+        "drained_peat_drying_delta_db": -2.45,
+        "rewetted_peat_drying_delta_db": -0.92,
+        "smoke_penetration": "100% transparent to smoke and haze",
+        "canopy_penetration": "Penetrates canopy to sense peat surface moisture"
+      },
+      "Sentinel1_C_band_5_6cm": {
+        "wavelength_cm": 5.6,
+        "frequency_ghz": 5.405,
+        "reference_forest_drift_db": -0.14,
+        "drained_peat_drying_delta_db": -0.85,
+        "rewetted_peat_drying_delta_db": -0.41,
+        "smoke_penetration": "100% transparent to smoke and haze",
+        "canopy_penetration": "Scatters mostly in upper leaves/twigs; weaker water-table sensitivity"
+      }
+    },
+    "direction_agreement": true,
+    "scientific_takeaway_en": "Both NISAR L-band and Sentinel-1 C-band show backscatter decreases in open drained peat between June and September 2026, but L-band (24 cm) exhibits nearly 3x stronger dynamic range (-2.45 dB vs -0.85 dB) because longer wavelengths penetrate vegetation cover to reach the peat surface.",
+    "scientific_takeaway_id": "Baik NISAR L-band maupun Sentinel-1 C-band menunjukkan penurunan hamburan balik pada gambut terdrainase terbuka antara Juni dan September 2026, namun L-band (24 cm) memiliki rentang sinyal hampir 3x lebih kuat (-2,45 dB vs -0,85 dB) karena gelombang panjang menembus tajuk vegetasi hingga mencapai permukaan tanah gambut."
+  }
+}
