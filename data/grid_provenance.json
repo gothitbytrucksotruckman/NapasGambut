@@ -1,0 +1,8 @@
+{
+  "canal_source": "osm_overpass",
+  "peat_source": "gfw_indonesia_peat_lands",
+  "concession_source": "gfw_indonesia_oil_palm_and_wood_fiber_concessions",
+  "dam_source": null,
+  "class_source": "heuristic_rules",
+  "tree_cover_source": "heuristic_constants"
+}
