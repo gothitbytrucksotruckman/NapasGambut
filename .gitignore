@@ -32,3 +32,6 @@ docs/references/*.pdf
 # OS
 .DS_Store
 Thumbs.db
+
+# Presentation & Local Assets
+presentation_assets/
