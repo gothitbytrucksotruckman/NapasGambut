@@ -145,10 +145,11 @@ def classify_states(df_cell_stats, df_grid_cells, df_fires, df_coherence, contex
 
 
 def run_statistical_tests(df_cell_stats, df_grid_cells, df_fires):
-    min_d_hh_per_cell = (
-        df_cell_stats.groupby("cell_id")["D_hh"].min().reset_index().rename(columns={"D_hh": "min_D_hh"})
+    idx_min = df_cell_stats.groupby("cell_id")["D_hh"].idxmin()
+    min_dates = df_cell_stats.loc[idx_min, ["cell_id", "date", "D_hh"]].rename(
+        columns={"D_hh": "min_D_hh", "date": "date_of_min"}
     )
-    merged = df_grid_cells.merge(min_d_hh_per_cell, on="cell_id", how="left")
+    merged = df_grid_cells.merge(min_dates, on="cell_id", how="left")
 
     non_forest = merged[merged["class"].isin(["drained", "plantation", "rewetted"])].dropna(
         subset=["canal_density", "min_D_hh"]
@@ -197,11 +198,13 @@ def run_statistical_tests(df_cell_stats, df_grid_cells, df_fires):
             "name": "Spearman canal density vs min D_hh",
             "statistic": float(test1.statistic),
             "p_value": float(test1.pvalue),
+            "n": int(len(non_forest)),
         },
         "test2_rewetted_vs_drained": {
             "name": "Mann-Whitney U rewetted vs drained min D_hh",
             "statistic": float(test2.statistic),
             "p_value": float(test2.pvalue),
+            "n": int(len(rewetted_min) + len(drained_min)),
             "rewetted_median_db": float(rewetted_min.median()),
             "drained_median_db": float(drained_min.median()),
         },
@@ -209,6 +212,7 @@ def run_statistical_tests(df_cell_stats, df_grid_cells, df_fires):
             "name": "Mann-Whitney U pre-fire D_hh (burned vs unburned)",
             "statistic": float(test3.statistic),
             "p_value": float(test3.pvalue),
+            "n": int(len(burned_pre_vals) + len(unburned_pre_vals)),
             "burned_pre_median_db": float(pd.Series(burned_pre_vals).median()),
             "unburned_pre_median_db": float(pd.Series(unburned_pre_vals).median()),
         },
@@ -216,6 +220,7 @@ def run_statistical_tests(df_cell_stats, df_grid_cells, df_fires):
             "name": "Mann-Whitney U raw dB drift (forest vs open peat)",
             "statistic": float(test4.statistic),
             "p_value": float(test4.pvalue),
+            "n": int(len(forest_drift) + len(open_drift)),
             "forest_mean_abs_drift_db": float(forest_drift.mean()),
             "open_mean_abs_drift_db": float(open_drift.mean()),
         },
@@ -224,36 +229,193 @@ def run_statistical_tests(df_cell_stats, df_grid_cells, df_fires):
     return test_results, merged
 
 
-def generate_rankings(merged_cells, test_results):
+def to_native_types(obj):
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, float)):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return float(obj)
+    elif isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return [to_native_types(x) for x in obj.tolist()]
+    elif isinstance(obj, dict):
+        return {str(k): to_native_types(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple, set)):
+        return [to_native_types(x) for x in obj]
+    elif pd.isna(obj):
+        return None
+    return obj
+
+
+def generate_scorecard(df_states, merged_cells, test_results):
+    burned_cells = set(df_states[df_states["state"].isin([2, 3, 4])]["cell_id"].unique())
+    merged_cells["is_burned"] = merged_cells["cell_id"].isin(burned_cells)
+
+    dates = sorted(df_states["date"].unique())
+    date_to_idx = {d: i for i, d in enumerate(dates)}
+    df_states_t = df_states.copy()
+    df_states_t["t"] = df_states_t["date"].map(date_to_idx)
+    pivot_states = df_states_t.pivot(index="cell_id", columns="t", values="state")
+
+    recovery_passes = {}
+    for cid, row in pivot_states.iterrows():
+        vals = row.values
+        first_fire = None
+        for t, s in enumerate(vals):
+            if s in (2, 3) and first_fire is None:
+                first_fire = t
+            elif first_fire is not None and s == 5:
+                recovery_passes[cid] = t - first_fire
+                break
+
+    classes = ["drained", "rewetted", "plantation", "intact_forest", "reference_forest", "settlement"]
+    by_class = []
+    for c in classes:
+        sub = merged_cells[merged_cells["class"] == c]
+        if sub.empty:
+            continue
+        vals = sub["min_D_hh"].dropna()
+        passes = sub["cell_id"].map(recovery_passes).dropna()
+        by_class.append({
+            "class": c,
+            "n_cells": int(len(sub)),
+            "median_min_hh_db": round(float(vals.median()), 4) if len(vals) > 0 else 0.0,
+            "p25_min_hh_db": round(float(vals.quantile(0.25)), 4) if len(vals) > 0 else 0.0,
+            "p75_min_hh_db": round(float(vals.quantile(0.75)), 4) if len(vals) > 0 else 0.0,
+            "share_burned": round(float(sub["is_burned"].mean()), 4),
+            "median_passes_to_recovery": round(float(passes.median()), 1) if len(passes) > 0 else None,
+        })
+
+    # Top 20 cells for canal blocking (deepest drying and high canal density)
     drained_cells = merged_cells[merged_cells["class"] == "drained"].copy()
-    drained_cells["block_score"] = drained_cells["canal_density"] * drained_cells["min_D_hh"].abs()
-    top_block_canals = (
-        drained_cells.sort_values(by=["block_score", "min_D_hh"], ascending=[False, True])
-        .head(20)[["cell_id", "canal_density", "min_D_hh", "class"]]
-        .to_dict(orient="records")
-    )
+    drained_cells["canal_density"] = drained_cells["canal_density"].fillna(0.0)
+    drained_cells["block_priority_score"] = drained_cells["canal_density"] * drained_cells["min_D_hh"].abs()
+    top_canals_df = drained_cells.sort_values(
+        by=["block_priority_score", "min_D_hh"], ascending=[False, True]
+    ).head(20)
 
+    top_20_canals = [
+        {
+            "cell": str(r["cell_id"]),
+            "class": str(r["class"]),
+            "min_hh_db": round(float(r["min_D_hh"]), 3),
+            "date_of_min": str(r["date_of_min"]),
+            "canal_density_km_per_km2": round(float(r["canal_density"]), 2),
+            "priority_score": round(float(r["block_priority_score"]), 3),
+        }
+        for _, r in top_canals_df.iterrows()
+    ]
+
+    # Top 20 dams/rewetted areas for inspection (rewetted cells with deepest anomaly below drained median)
     rewetted_cells = merged_cells[merged_cells["class"] == "rewetted"].copy()
+    rewetted_cells["canal_density"] = rewetted_cells["canal_density"].fillna(0.0)
     drained_median = test_results["test2_rewetted_vs_drained"]["drained_median_db"]
-    rewetted_cells["anomaly_depth"] = drained_median - rewetted_cells["min_D_hh"]
-    top_dam_inspect = (
-        rewetted_cells.sort_values(by="min_D_hh", ascending=True)
-        .head(20)[["cell_id", "canal_density", "min_D_hh", "class"]]
-        .to_dict(orient="records")
-    )
+    rewetted_cells["gap_vs_drained_median_db"] = drained_median - rewetted_cells["min_D_hh"]
+    top_dams_df = rewetted_cells.sort_values(by="min_D_hh", ascending=True).head(20)
 
-    scorecard_raw = {
+    top_20_dams = [
+        {
+            "cell": str(r["cell_id"]),
+            "class": str(r["class"]),
+            "min_hh_db": round(float(r["min_D_hh"]), 3),
+            "gap_vs_drained_median_db": round(float(r["gap_vs_drained_median_db"]), 3),
+            "canal_density_km_per_km2": round(float(r["canal_density"]), 2),
+        }
+        for _, r in top_dams_df.iterrows()
+    ]
+
+    # Fastest drying (all drained or plantation cells, lowest minimum first)
+    dp_cells = merged_cells[merged_cells["class"].isin(["drained", "plantation"])].copy()
+    fastest_drying_df = dp_cells.sort_values(by="min_D_hh", ascending=True).head(20)
+    fastest_drying = [
+        {
+            "cell": str(r["cell_id"]),
+            "class": str(r["class"]),
+            "min_hh_db": round(float(r["min_D_hh"]), 3),
+            "date_of_min": str(r["date_of_min"]),
+        }
+        for _, r in fastest_drying_df.iterrows()
+    ]
+
+    dams_to_inspect = [
+        {
+            "cell": str(r["cell_id"]),
+            "min_hh_db": round(float(r["min_D_hh"]), 3),
+            "gap_vs_drained_median_db": round(float(r["gap_vs_drained_median_db"]), 3),
+        }
+        for _, r in top_dams_df.iterrows()
+    ]
+
+    tests_list = [
+        {
+            "id": "test1_canal_correlation",
+            "name_en": "Canal density vs peat subsidence drying",
+            "name_id": "Kerapatan kanal vs penurunan kelembapan gambut",
+            "statistic": "Spearman rank correlation",
+            "value": round(float(test_results["test1_canal_correlation"]["statistic"]), 4),
+            "n": int(test_results["test1_canal_correlation"]["n"]),
+            "note_en": f"Spearman r = {test_results['test1_canal_correlation']['statistic']:.4f}, p = {test_results['test1_canal_correlation']['p_value']:.4f}",
+            "note_id": f"Spearman r = {test_results['test1_canal_correlation']['statistic']:.4f}, p = {test_results['test1_canal_correlation']['p_value']:.4f}",
+        },
+        {
+            "id": "test2_rewetted_vs_drained",
+            "name_en": "Rewetted vs drained peat drying depth",
+            "name_id": "Kedalaman pengeringan gambut basah kembali vs terdrainase",
+            "statistic": "Mann-Whitney U",
+            "value": round(float(test_results["test2_rewetted_vs_drained"]["statistic"]), 4),
+            "n": int(test_results["test2_rewetted_vs_drained"]["n"]),
+            "note_en": f"U = {test_results['test2_rewetted_vs_drained']['statistic']:.0f}, p = {test_results['test2_rewetted_vs_drained']['p_value']:.4e}",
+            "note_id": f"U = {test_results['test2_rewetted_vs_drained']['statistic']:.0f}, p = {test_results['test2_rewetted_vs_drained']['p_value']:.4e}",
+        },
+        {
+            "id": "test3_pre_fire_drying",
+            "name_en": "Pre-fire moisture deficit (burned vs unburned)",
+            "name_id": "Defisit kelembapan pra-kebakaran (terbakar vs tidak terbakar)",
+            "statistic": "Mann-Whitney U",
+            "value": round(float(test_results["test3_pre_fire_drying"]["statistic"]), 4),
+            "n": int(test_results["test3_pre_fire_drying"]["n"]),
+            "note_en": f"U = {test_results['test3_pre_fire_drying']['statistic']:.0f}, p = {test_results['test3_pre_fire_drying']['p_value']:.4e}",
+            "note_id": f"U = {test_results['test3_pre_fire_drying']['statistic']:.0f}, p = {test_results['test3_pre_fire_drying']['p_value']:.4e}",
+        },
+        {
+            "id": "test4_forest_vs_open_drift",
+            "name_en": "Forest reference radar drift vs open peat",
+            "name_id": "Drift radar hutan referensi vs gambut terbuka",
+            "statistic": "Mann-Whitney U",
+            "value": round(float(test_results["test4_forest_vs_open_drift"]["statistic"]), 4),
+            "n": int(test_results["test4_forest_vs_open_drift"]["n"]),
+            "note_en": f"U = {test_results['test4_forest_vs_open_drift']['statistic']:.0f}, p = {test_results['test4_forest_vs_open_drift']['p_value']:.4e}",
+            "note_id": f"U = {test_results['test4_forest_vs_open_drift']['statistic']:.0f}, p = {test_results['test4_forest_vs_open_drift']['p_value']:.4e}",
+        },
+    ]
+
+    scorecard_payload = {
+        "by_class": by_class,
+        "rankings": {
+            "fastest_drying": fastest_drying,
+            "dams_to_inspect": dams_to_inspect,
+            "top_20_canals_to_block": top_20_canals,
+            "top_20_dams_to_inspect": top_20_dams,
+        },
+        "tests": tests_list,
         "statistical_tests": test_results,
         "recommendations": {
-            "top_20_canals_to_block": top_block_canals,
-            "top_20_dams_to_inspect": top_dam_inspect,
+            "top_20_canals_to_block": top_20_canals,
+            "top_20_dams_to_inspect": top_20_dams,
         },
     }
 
-    with open(DATA_DIR / "scorecard_raw.json", "w", encoding="utf-8") as f:
-        json.dump(scorecard_raw, f, indent=2)
+    clean_scorecard = to_native_types(scorecard_payload)
 
-    return scorecard_raw
+    with open(DATA_DIR / "scorecard.json", "w", encoding="utf-8") as f:
+        json.dump(clean_scorecard, f, indent=2)
+
+    with open(DATA_DIR / "scorecard_raw.json", "w", encoding="utf-8") as f:
+        json.dump(clean_scorecard, f, indent=2)
+
+    return clean_scorecard
 
 
 def main():
@@ -277,11 +439,19 @@ def main():
         data["df_fires"],
     )
 
-    generate_rankings(merged_cells, test_results)
+    scorecard = generate_scorecard(df_states, merged_cells, test_results)
+
+    print("\nTop 3 Cells for Canal Blocking:")
+    for item in scorecard["rankings"]["top_20_canals_to_block"][:3]:
+        print(f"  {item['cell']} (class: {item['class']}) -> min D_hh: {item['min_hh_db']} dB, canal density: {item['canal_density_km_per_km2']} km/km2, priority: {item['priority_score']}")
+
+    print("\nTop 3 Dams / Rewetted Areas for Inspection:")
+    for item in scorecard["rankings"]["top_20_dams_to_inspect"][:3]:
+        print(f"  {item['cell']} (class: {item['class']}) -> min D_hh: {item['min_hh_db']} dB, gap vs drained median: +{item['gap_vs_drained_median_db']} dB")
 
     print("\nStatistical Test Results:")
     for key, res in test_results.items():
-        print(f"  {res['name']} -> p-value: {res['p_value']:.4e} (stat: {res['statistic']:.4f})")
+        print(f"  {res['name']} -> p-value: {res['p_value']:.4e} (stat: {res['statistic']:.4f}, n: {res['n']})")
 
 
 if __name__ == "__main__":
