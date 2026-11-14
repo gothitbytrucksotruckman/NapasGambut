@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { AppShell } from './components/AppShell';
 import { ErrorScreen } from './components/ErrorScreen';
 import { t } from './i18n';
+import { Method } from './screens/Method';
+import { Reveal } from './screens/Reveal';
+import { Scorecard } from './screens/Scorecard';
 import { SeasonMap, SeasonMapSkeleton } from './screens/SeasonMap';
-import { ScreenStub } from './screens/ScreenStub';
 import { parseHash } from './state/hash';
 import { AppProvider, type LoadResult, loadFromEnv, useApp } from './state/store';
 
@@ -17,7 +19,7 @@ function Screens() {
       onNavigate={(screen) => dispatch({ type: 'go', screen })}
       onLang={(lang) => dispatch({ type: 'setLang', lang })}
     >
-      {state.screen === 'map' ? <SeasonMap /> : <ScreenStub />}
+      {state.screen === 'map' ? <SeasonMap /> : state.screen === 'scorecard' ? <Scorecard /> : state.screen === 'method' ? <Method /> : <Reveal />}
     </AppShell>
   );
 }

@@ -1,19 +1,16 @@
-/* Small full-page screens: error and the not-yet-built stub. Notebook voice: serif heading, narrow measure. */
-.error-screen,
-.stub {
+/* Full-page error screen. Notebook voice: serif heading, narrow measure. */
+.error-screen {
   max-width: 38rem;
   margin: 0 auto;
   padding: var(--sp-7) var(--sp-4);
 }
-.error-screen h1,
-.stub h1 {
+.error-screen h1 {
   font-family: var(--font-story);
   font-size: var(--fs-xl);
   line-height: 1.2;
   margin-bottom: var(--sp-3);
 }
-.error-screen p,
-.stub p {
+.error-screen p {
   margin-bottom: var(--sp-4);
   color: var(--ink-soft);
 }
