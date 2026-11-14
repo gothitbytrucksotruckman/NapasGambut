@@ -10,12 +10,17 @@ import certifi
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
+os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import requests
+import rioxarray
 import xarray as xr
+from rasterio.enums import Resampling
+from rioxarray.merge import merge_arrays
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
@@ -40,6 +45,9 @@ PRIMS_DEFAULT_ENDPOINTS = [
     "https://prims.brg.go.id/arcgis/rest/services/PRIMS/Sekat_Kanal/MapServer/0/query",
     "https://geoportal.brgm.go.id/arcgis/rest/services/Sekat_Kanal/FeatureServer/0/query",
 ]
+
+ESA_WORLDCOVER_S3_PREFIX = "s3://esa-worldcover/v200/2021/map"
+ESA_WORLDCOVER_HTTPS_PREFIX = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map"
 
 
 def _wgs84_to_utm(lon, lat, epsg=32749):
@@ -261,7 +269,6 @@ def _extract_osm_pbf_waterways(pbf_path, study_box):
     return handler.features
 
 
-# AI-generated (lines 264-522)
 def _fetch_osm_canals_utm(study_box, epsg=32749, pbf_path=None):
     min_lon, min_lat, max_lon, max_lat = study_box
     bbox_poly = box(min_lon, min_lat, max_lon, max_lat)
@@ -465,6 +472,7 @@ def _load_gfw_peat_and_concessions_utm(study_box, epsg=32749):
     return peat_union_utm, conc_union_utm
 
 
+# AI-generated (lines 475-659)
 def _fetch_prims_dams_utm(study_box, epsg=32749, prims_urls=None):
     data_dir = PROJECT_ROOT / "data"
     local_dams = data_dir / "prims_dams.geojson"
@@ -519,7 +527,136 @@ def _fetch_prims_dams_utm(study_box, epsg=32749, prims_urls=None):
                 }
             )
     return dams_gdf, context_dams
-# End AI-generated (lines 264-522)
+
+
+def _worldcover_tile_codes(study_box):
+    min_lon, min_lat, max_lon, max_lat = study_box
+    lat_start = int(np.floor(min_lat / 3.0)) * 3
+    lat_end = int(np.floor(max_lat / 3.0)) * 3
+    lon_start = int(np.floor(min_lon / 3.0)) * 3
+    lon_end = int(np.floor(max_lon / 3.0)) * 3
+    codes = []
+    for lat0 in range(lat_start, lat_end + 1, 3):
+        ns = "S" if lat0 < 0 else "N"
+        for lon0 in range(lon_start, lon_end + 1, 3):
+            ew = "W" if lon0 < 0 else "E"
+            codes.append(f"{ns}{abs(lat0):02d}{ew}{abs(lon0):03d}")
+    return codes
+
+
+def _stream_esa_worldcover_utm(study_box, epsg=32749):
+    data_dir = PROJECT_ROOT / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    utm_cache = data_dir / "esa_worldcover_2021_utm.tif"
+
+    if utm_cache.exists():
+        try:
+            utm_da = rioxarray.open_rasterio(utm_cache, masked=False).squeeze("band", drop=True)
+            print(
+                f"[WORLDCOVER] Loaded cached 10 m raster {utm_cache} | shape={utm_da.shape} | EPSG:{epsg}"
+            )
+            return utm_da
+        except Exception as exc:
+            print(f"[WARN] Could not read cached WorldCover {utm_cache}: {exc}")
+
+    min_lon, min_lat, max_lon, max_lat = study_box
+    tile_codes = _worldcover_tile_codes(study_box)
+    clips = []
+    for code in tile_codes:
+        fname = f"ESA_WorldCover_10m_2021_v200_{code}_Map.tif"
+        s3_uri = f"{ESA_WORLDCOVER_S3_PREFIX}/{fname}"
+        https_uri = f"{ESA_WORLDCOVER_HTTPS_PREFIX}/{fname}"
+        loaded = None
+        for uri in (s3_uri, https_uri):
+            try:
+                print(f"[WORLDCOVER] Streaming {uri} via rioxarray...", flush=True)
+                da = rioxarray.open_rasterio(uri, chunks={"x": 2048, "y": 2048}, masked=False)
+                t_minx = max(min_lon, float(da.x.min()))
+                t_maxx = min(max_lon, float(da.x.max()))
+                t_miny = max(min_lat, float(da.y.min()))
+                t_maxy = min(max_lat, float(da.y.max()))
+                loaded = (
+                    da.rio.clip_box(
+                        minx=t_minx - 0.01,
+                        miny=t_miny - 0.01,
+                        maxx=t_maxx + 0.01,
+                        maxy=t_maxy + 0.01,
+                    )
+                    .squeeze("band", drop=True)
+                    .load()
+                )
+                break
+            except Exception as exc:
+                print(f"[WARN] Failed streaming {uri}: {exc}")
+        if loaded is None:
+            raise RuntimeError(f"Failed to stream ESA WorldCover 2021 v200 tile {code} from S3/HTTPS.")
+        clips.append(loaded)
+
+    merged = merge_arrays(clips) if len(clips) > 1 else clips[0]
+    utm_da = merged.rio.reproject(f"EPSG:{int(epsg)}", resolution=10.0, resampling=Resampling.nearest)
+    utm_da.rio.to_raster(utm_cache)
+    print(f"[WORLDCOVER] Aligned 10 m raster to EPSG:{epsg} -> {utm_cache} | shape={utm_da.shape}")
+    return utm_da
+
+
+def _compute_worldcover_cell_shares_bincount(utm_da, x_min_edge, y_max_edge, n_rows, n_cols, cell_size_m):
+    n_cells = int(n_rows * n_cols)
+    wc_vals = np.asarray(utm_da.values, dtype=np.uint8)
+    xs = np.asarray(utm_da.x.values, dtype=np.float64)
+    ys = np.asarray(utm_da.y.values, dtype=np.float64)
+
+    col_idx = np.floor((xs - x_min_edge) / cell_size_m).astype(np.int32)
+    row_idx = np.floor((y_max_edge - ys) / cell_size_m).astype(np.int32)
+
+    valid_r = (row_idx >= 0) & (row_idx < n_rows)
+    valid_c = (col_idx >= 0) & (col_idx < n_cols)
+
+    sub_wc = wc_vals[np.ix_(valid_r, valid_c)]
+    rr, cc = np.meshgrid(row_idx[valid_r], col_idx[valid_c], indexing="ij")
+    flat_cell = (rr * n_cols + cc).ravel()
+    flat_wc = sub_wc.ravel()
+
+    valid_px = flat_wc > 0
+    flat_cell_v = flat_cell[valid_px]
+    flat_wc_v = flat_wc[valid_px]
+
+    total_counts = np.bincount(flat_cell_v, minlength=n_cells)
+    tree_counts = np.bincount(flat_cell_v, weights=(flat_wc_v == 10).astype(np.int32), minlength=n_cells)
+    built_counts = np.bincount(flat_cell_v, weights=(flat_wc_v == 50).astype(np.int32), minlength=n_cells)
+
+    tree_cover_pct = np.where(total_counts > 0, (tree_counts / total_counts) * 100.0, 0.0)
+    built_up_share = np.where(total_counts > 0, built_counts / total_counts, 0.0)
+    return tree_cover_pct, built_up_share, total_counts
+
+
+def _classify_cell_six_rules(
+    built_up_share,
+    concession_fraction,
+    peat_fraction,
+    canal_length_m,
+    nearest_dam_dist_m,
+    tree_cover_pct,
+    in_ref_box,
+):
+    if built_up_share >= 0.10:
+        return "settlement"
+    if concession_fraction >= 0.50:
+        return "plantation"
+    if (
+        peat_fraction >= 0.50
+        and canal_length_m > 0.0
+        and nearest_dam_dist_m is not None
+        and nearest_dam_dist_m <= 1000.0
+    ):
+        return "rewetted"
+    if peat_fraction >= 0.50 and (canal_length_m > 0.0 or tree_cover_pct < 70.0):
+        return "drained"
+    if in_ref_box and peat_fraction >= 0.50 and tree_cover_pct >= 70.0 and canal_length_m == 0.0:
+        return "reference_forest"
+    if peat_fraction >= 0.50 and tree_cover_pct >= 70.0 and canal_length_m == 0.0:
+        return "intact_forest"
+    return None
+# End AI-generated (lines 475-659)
 
 
 def _compute_exact_canal_lengths_utm(cells_gdf, canals_gdf):
@@ -578,6 +715,12 @@ def build_spatial_grid(cfg, dry_run=False):
     peat_union_utm, conc_union_utm = _load_gfw_peat_and_concessions_utm(study_box, epsg=epsg)
     dams_gdf, dam_context_features = _fetch_prims_dams_utm(
         study_box, epsg=epsg, prims_urls=cfg.get("prims_dams_urls")
+    )
+    utm_worldcover = _stream_esa_worldcover_utm(study_box, epsg=epsg)
+
+    print("[GRID] Computing tree_cover_pct (class 10) & built_up_share (class 50) via numpy.bincount...", flush=True)
+    tree_cover_arr, built_up_arr, wc_px_counts = _compute_worldcover_cell_shares_bincount(
+        utm_worldcover, x_min_edge, y_max_edge, n_rows, n_cols, cell_size_m
     )
 
     cell_polys_utm = []
@@ -667,6 +810,7 @@ def build_spatial_grid(cfg, dry_run=False):
     ref_min_lon, ref_min_lat, ref_max_lon, ref_max_lat = ref_box
     records = []
     geojson_cells = []
+    dropped_unmatched = 0
 
     for idx, meta in enumerate(cell_meta):
         (
@@ -697,30 +841,26 @@ def build_spatial_grid(cfg, dry_run=False):
         peat_frac = round(float(peat_fractions[idx]), 4)
         conc_frac = round(float(concession_fractions[idx]), 4)
         dam_dist = nearest_dam_dists[idx]
+        tree_cover = round(float(np.clip(tree_cover_arr[idx], 0.0, 100.0)), 1)
+        built_share = round(float(np.clip(built_up_arr[idx], 0.0, 1.0)), 4)
 
         in_ref_box = (
             ref_min_lon <= lon_cen <= ref_max_lon
             and ref_min_lat <= lat_cen <= ref_max_lat
         )
 
-        if in_ref_box and c_len_m == 0.0 and conc_frac == 0.0:
-            cell_class = "reference_forest"
-            tree_cover = round(float(88.0 + 10.0 * np.sin(r * 0.3 + c * 0.2) ** 2), 1)
-        elif conc_frac >= 0.25:
-            cell_class = "plantation"
-            tree_cover = 56.0
-        elif dam_dist is not None and dam_dist <= 1000.0 and c_dens_km_km2 > 0.0:
-            cell_class = "rewetted"
-            tree_cover = 52.0
-        elif c_dens_km_km2 > 0.0:
-            cell_class = "drained"
-            tree_cover = round(float(max(5.0, 35.0 - c_dens_km_km2 * 4.0)), 1)
-        elif peat_frac >= 0.25 and lon_cen >= 114.00:
-            cell_class = "drained"
-            tree_cover = 28.0
-        else:
-            cell_class = "intact_forest"
-            tree_cover = 85.0
+        cell_class = _classify_cell_six_rules(
+            built_share,
+            conc_frac,
+            peat_frac,
+            c_len_m,
+            dam_dist,
+            tree_cover,
+            in_ref_box,
+        )
+        if cell_class is None:
+            dropped_unmatched += 1
+            continue
 
         ring = [
             [round(float(lons[i]), 4), round(float(lats[i]), 4)]
@@ -740,6 +880,7 @@ def build_spatial_grid(cfg, dry_run=False):
                 "canal_length_m": c_len_m,
                 "peat_fraction": peat_frac,
                 "concession_fraction": conc_frac,
+                "built_up_share": built_share,
                 "nearest_dam_dist_m": dam_dist,
                 "tree_cover_pct": tree_cover,
                 "tree_cover": tree_cover,
@@ -774,6 +915,7 @@ def build_spatial_grid(cfg, dry_run=False):
                     "canal_density_km_per_km2": c_dens_km_km2,
                     "peat_fraction": peat_frac,
                     "concession_fraction": conc_frac,
+                    "built_up_share": built_share,
                     "nearest_dam_dist_m": dam_dist,
                     "tree_cover_pct": tree_cover,
                     "n_pixels": px_count,
@@ -806,7 +948,7 @@ def build_spatial_grid(cfg, dry_run=False):
     parquet_path = data_dir / "grid_cells.parquet"
     df = pd.DataFrame(records)
     df.to_parquet(parquet_path, index=False)
-    print(f"[SAVED] {parquet_path} ({len(df)} cells)")
+    print(f"[SAVED] {parquet_path} ({len(df)} matched cells, {dropped_unmatched} unmatched dropped)")
 
     bundle_dir = PROJECT_ROOT / cfg.get("bundle_dir", "bundle")
     bundle_dir.mkdir(parents=True, exist_ok=True)
@@ -856,11 +998,38 @@ def build_spatial_grid(cfg, dry_run=False):
         "peat_source": "gfw_indonesia_peat_lands",
         "concession_source": "gfw_indonesia_oil_palm_and_wood_fiber_concessions",
         "dam_source": "brgm_prims" if dams_gdf is not None else None,
-        "class_source": "heuristic_rules",
-        "tree_cover_source": "heuristic_constants",
+        "class_source": "esa_worldcover_2021_v200_and_gfw_peat_concessions",
+        "tree_cover_source": "esa_worldcover_10m_2021_v200",
+        "license": "CC BY 4.0",
+        "dropped_unmatched_cells": int(dropped_unmatched),
+        "sources": [
+            {
+                "name": "ESA WorldCover 10 m 2021 v200",
+                "url": "https://esa-worldcover.org/en",
+                "s3_uri": "s3://esa-worldcover/v200/2021/map",
+                "license": "CC BY 4.0",
+                "citation": "© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium",
+                "role_en": "10 m tree cover (class 10) and built-up share (class 50) aggregated via O(N) numpy.bincount per 500 m cell.",
+                "role_id": "Tutupan pohon 10 m (kelas 10) dan proporsi terbangun (kelas 50) diagregasi per sel 500 m.",
+            },
+            {
+                "name": "Global Forest Watch (WRI) — Indonesia Peat Lands & Concessions",
+                "url": "https://www.globalforestwatch.org/",
+                "license": "CC BY 4.0",
+                "role_en": "Indonesia peatland boundaries and oil-palm/wood-fibre concession polygons in EPSG:32749.",
+                "role_id": "Batas lahan gambut dan poligon konsesi kelapa sawit/hutan tanaman Indonesia dalam EPSG:32749.",
+            },
+            {
+                "name": "OpenStreetMap Contributors",
+                "url": "https://www.openstreetmap.org/copyright",
+                "license": "ODbL 1.0",
+                "role_en": "Drainage canals, ditches, and rivers (waterway=canal|drain|ditch|river) in EPSG:32749.",
+                "role_id": "Kanal drainase, parit, dan sungai (waterway=canal|drain|ditch|river) dalam EPSG:32749.",
+            },
+        ],
     }
     (data_dir / "grid_provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
-    print(f"[SAVED] {data_dir / 'grid_provenance.json'} {provenance}")
+    print(f"[SAVED] {data_dir / 'grid_provenance.json'}")
 
     class_counts = {}
     for r in records:
@@ -869,8 +1038,8 @@ def build_spatial_grid(cfg, dry_run=False):
 
     elapsed = round(time.perf_counter() - t0, 2)
     print(
-        f"=== 03_grid.py Complete in {elapsed}s | Grid={n_rows}x{n_cols} ({len(records)} cells) "
-        f"| reference_forest={ref_count} (>= {ref_min_cells}) ==="
+        f"=== 03_grid.py Complete in {elapsed}s | Matched={len(records)}/{n_rows * n_cols} cells "
+        f"(dropped={dropped_unmatched}) | reference_forest={ref_count} (>= {ref_min_cells}) ==="
     )
     print(f"Class breakdown: {class_counts}")
     return records
