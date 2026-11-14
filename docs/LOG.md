@@ -218,3 +218,49 @@ Changes:
 - `src/components/Timeline.tsx`: the global Space handler also skips `SUMMARY`, which Space opens natively.
 - `src/layers/mapLayers.ts` `showRadar()`: hides the radar layer when the date has no radar image, instead of keeping the previous pass's picture. `src/screens/SeasonMap.tsx` now only hides the layer on other layers and leaves showing it to `showRadar()`, so the two cannot disagree. Test added in `tests/layers.test.ts` (date with no image hides the layer and never repoints the source).
 - `src/screens/Reveal.tsx` `RevealSkeleton` + `src/App.tsx`: the loading skeleton follows the screen in the URL. Reveal (the landing screen) gets the Reveal grid; every other screen keeps the map skeleton. Scorecard and Method still load under the map skeleton (not fixed; they are text pages that open from the nav, rarely by direct link).
+
+## 2026-11-14 · Mentor review of the architecture doc, pipeline fixes (DONE, awaiting user commit)
+
+Reviewed `Napas Gambut — Architecture and Method.md` (outside the repo) against the repo and the real data on disk. Grade: B+ for the design, C for how closely the pipeline follows it. The doc was revised in place with "Rev 2" notes; the original is kept in the session scratchpad.
+
+Checked online (ASF NISAR data guide, FIRMS API page, Open-Meteo docs):
+- Permanent NISAR data gap 2026-07-27T22:03Z to 2026-08-10T00:55Z. This is why the census has 10 dates: the 28 Jul and 9 Aug passes were never acquired.
+- GUNW exists only for co-pol, nearest-neighbour (12-day) pairs. `data/coherence_report.json` shows `gunw_scenes_found: 0`, so every interval used a home-made GCOV brightness formula labelled as coherence.
+- VALIDATED products cover acquisitions from 21 Oct 2026; the 1 Nov scene is CRID P05036, the rest are P05023 (PROVISIONAL).
+- FIRMS area API: 1 to 5 days per request; older days move from `_NRT` to `_SP`, and per sensor the two never overlap.
+- Rain comes from the Open-Meteo archive (ERA5 family), not IMERG as the code's log line said.
+
+Verification: `npm run typecheck` clean · `npm test` 13 files, 94 tests passed · `npm run build` ok · `npm run mock` output byte-identical to the committed bundle for series, scorecard and manifest · `py pipeline/07_states.py --self-test` 14/14 · `py pipeline/05_coherence.py --self-test` pass · rain null handling checked with stubbed imports. Stages 5 to 7 were not re-run on real data: this machine's pandas has no parquet engine, and geopandas, requests and zarr are not installed.
+
+Changes:
+- `scripts/mock/states.ts`: fire counts "since the last valid pass" (the Method screen's own wording), so a fire during a dropped pass is not lost. Identical to the old rule when no pass is dropped; the mock bundle does not change. New test in `tests/mock/states.test.ts` (RED first, then GREEN).
+- `pipeline/07_states.py` `classify_states`: now the same rules as the mock (build brief 6.6). Fixed: HV fall since the last valid pass (was the HV level), coherence < 20 on 0..100 (was < 0.25 on 0..1), rain returned = any interval >= `rain_return_mm` (was > 5 mm in the current interval only), null sigma at a valid date is an error (was silently 0.12 dB), fires carried across dropped passes. Thresholds come from `noise_floor.json`; `rain_return_mm: 50` added to `config.yaml`. `--self-test` added.
+- `pipeline/05_coherence.py`: with no GUNW pair the interval is null (`no_gunw_pair`). The brightness proxy runs only behind `--allow-proxy`, and the report says `proxy_used`.
+- `pipeline/06_context_visuals.py`: removed the hard-coded NISAR vs Sentinel-1 numbers and their PNG. The smoke image no longer falls back to 2023 dates; a failed fetch stops the run, and `--dry-run` labels its synthetic image as synthetic. `data/context_visuals.json` updated to match (`sentinel1_contrast: null`).
+- `pipeline/06_context_tabular.py`: FIRMS also queries `_SP` sources; failed requests stop the run instead of reading as "no fire"; fire intervals are half-open `(start, end]` (a fire on a pass date was counted in two intervals); missing rain days give null, not 0 mm; the log and summary name Open-Meteo.
+- Deleted `public/bundle/images/{smoke_reveal,sentinel1_contrast}.png` (stray, unused, wiped by `npm run mock`) and `bundle/images/sentinel1_contrast.png` (invented numbers).
+
+Not done (data lead, needs the real environment):
+- Re-run stages 5, 6 and 7. `data/coherence.parquet` still holds the proxy values.
+- Build `08_export`: insert the two gap passes as dropped dates, map the scorecard to the contract (test ids, plain notes, `median_passes_to_recovery` from the lowest drying, no extra keys), write `sources` with the real providers, check the 6 MB / 10 MB budget, write to `public/bundle/`.
+- Find why the GUNW search returned nothing.
+
+## 2026-11-14 · 08_export built; stage 3 found synthetic (DONE, awaiting user commit)
+
+Verification: `npm run typecheck` clean · `npm test` 13 files, 94 tests passed · `npm run build` ok · `npm run check-bundle` on the mock bundle ok (6,212 cells, 3.20 MB data, 5.51 MB images) and on a deliberately broken copy fails, naming `series.json → hh[3]` and the missing `reveal_radar.png` · `py pipeline/08_export.py --self-test` passes: 3 cells, 5 passes with one gap pass, through `build_bundle`, write, then the app's loader · `05_coherence` and `07_states` self-tests pass · all pipeline files compile. Not run on the real data: no parquet engine here.
+
+Found while building the export (most serious finding so far):
+- `bundle/context_features.geojson` is the stage 3 **fallback**: 24 straight canals at round coordinates ("Primary Canal N-1"), drawn after the OSM query failed. Stage 3 classes come from that fake canal density plus a checkerboard (`(r + c) % 2` picks rewetted or plantation), a settlement every 17th row and 19th column, and lon/lat boxes; tree cover comes from a `sin()` formula and constants. The radar values are real, but every class comparison and every ranking on real data would rest on invented geography.
+
+New:
+- `pipeline/08_export.py`. Builds all six files plus images from stages 2 to 7. Every 12-day pass has a slot; a pass with no radar data is a dropped date (the 27 Jul to 10 Aug gap gets its own reason) with null values and state 1. Coherence is matched by its two dates, so a pair spanning a gap lands nowhere. Cells keep contract properties only. JSON is written with `allow_nan=False`. Checks: the 6 MB / 10 MB budget, states on passes with no data must be 1, hh/hv at the first date must be 0. The scorecard is a port of `scripts/mock/scorecard.ts` (same rounding, R-type-7 quantiles, average-rank Spearman), computed from the exported numbers. Peak drought = the pass where the drained cells' median index is lowest. "The pass before the fire" = the last pass with radar data, so fires right after the gap still count. Guards: refuses when canals, classes, tree cover, coherence or the smoke picture are stand-ins; `--allow-unverified` writes `bundle_test/` (git-ignored) with `data_kind: "mock"` so the app shows its Simulated badge. It never writes over `bundle/`, `data/` or the repo root.
+- `scripts/check-bundle.ts` + `npm run check-bundle -- <dir>`: validates a folder with the app's own `loadBundle`, checks that every named image exists, and checks the size budget. 08_export runs it at the end.
+
+Changed:
+- `pipeline/03_grid.py`: records where canals came from (`osm_overpass` or `synthetic_fallback`) and that classes and tree cover are `heuristic_*`, in `data/grid_provenance.json`, and warns on the fallback.
+- `pipeline/06_context_tabular.py`: `pass_calendar()` builds the 12-day calendar from the kept dates (fails if a kept date is off it); fires and rain are counted per real 12-day interval. On the committed dates: 12 passes, with 2026-07-28 and 2026-08-09 as slots.
+- `pipeline/07_states.py`: sigma looked up by date, coherence matched by (start, end) date pair, and an error if `fires.parquet` intervals don't match the calendar.
+
+Today's real outputs, run through the guard: fallback canals, heuristic classes, heuristic tree cover, coherence proxy. The export refuses, as intended.
+
+Order for the data team: (1) re-run 03 online and replace the heuristic classes with cited maps; (2) re-run 05 (null coherence), 06 (calendar, FIRMS `_SP`), 07; (3) `py pipeline/08_export.py`.

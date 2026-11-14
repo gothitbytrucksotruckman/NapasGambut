@@ -27,6 +27,8 @@ data/batch_*.zarr/
 data/cube_batch_*.zarr/
 data/parts_batch_*/
 data/qc_report.json
+# 08_export.py --allow-unverified writes here; never deployed
+bundle_test/
 docs/references/*.pdf
 
 # OS

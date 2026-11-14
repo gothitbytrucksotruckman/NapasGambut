@@ -235,7 +235,7 @@ def _fetch_osm_canals_utm(study_box, epsg=32749, dry_run=False):
                         f"[OSM] Loaded {len(geojson_features)} real OSM waterway features "
                         f"({len(segments_utm)} canal segments)."
                     )
-                    return np.asarray(segments_utm, dtype=np.float64), geojson_features
+                    return np.asarray(segments_utm, dtype=np.float64), geojson_features, "osm_overpass"
             except Exception as exc:
                 print(f"[WARN] Overpass endpoint {url} failed: {exc}")
 
@@ -276,7 +276,7 @@ def _fetch_osm_canals_utm(study_box, epsg=32749, dry_run=False):
                 },
             }
         )
-    return np.asarray(segments_utm, dtype=np.float64), geojson_features
+    return np.asarray(segments_utm, dtype=np.float64), geojson_features, "synthetic_fallback"
 
 
 def _compute_cell_canal_lengths(segments_utm, x_edges, y_edges_asc, n_rows, n_cols, cell_size_m):
@@ -333,7 +333,9 @@ def build_spatial_grid(cfg, dry_run=False):
     y_edges_desc = y_max_edge - np.arange(n_rows + 1, dtype=np.float64) * cell_size_m
     y_edges_asc = y_edges_desc[::-1]
 
-    segments_utm, canal_features = _fetch_osm_canals_utm(study_box, epsg=epsg, dry_run=dry_run)
+    segments_utm, canal_features, canal_source = _fetch_osm_canals_utm(study_box, epsg=epsg, dry_run=dry_run)
+    if canal_source != "osm_overpass":
+        print("[WARN] Canals are the SYNTHETIC fallback grid, not OpenStreetMap. 08_export will refuse this grid.")
     canal_lengths_m = _compute_cell_canal_lengths(
         segments_utm, x_edges, y_edges_asc, n_rows, n_cols, cell_size_m
     )
@@ -500,6 +502,16 @@ def build_spatial_grid(cfg, dry_run=False):
     fc_canals = {"type": "FeatureCollection", "features": canal_features}
     for out_canals in (bundle_dir / "context_features.geojson", data_dir / "osm_canals.geojson"):
         out_canals.write_text(json.dumps(fc_canals, separators=(",", ":")), encoding="utf-8")
+
+    # Classes and tree cover below are rule-of-thumb assignments, not a land-cover map. 08_export refuses
+    # to publish them as real until class_source names a cited land-cover dataset.
+    provenance = {
+        "canal_source": canal_source,
+        "class_source": "heuristic_rules",
+        "tree_cover_source": "heuristic_constants",
+    }
+    (data_dir / "grid_provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    print(f"[SAVED] {data_dir / 'grid_provenance.json'} {provenance}")
 
     class_counts = {}
     for r in records:

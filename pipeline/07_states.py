@@ -1,5 +1,7 @@
+import importlib.util
 import json
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +38,15 @@ def load_pipeline_data(base_dir=None):
     }
 
 
-def classify_states(df_cell_stats, df_grid_cells, df_fires, df_coherence, context_summary, noise_floor):
+def classify_states(
+    df_cell_stats, df_grid_cells, df_fires, df_coherence, context_summary, noise_floor,
+    rain_return_mm=50.0, out_path=DATA_DIR / "states.parquet",
+):
+    """State per cell and date, build brief 6.6 (first match wins). Same rules as scripts/mock/states.ts.
+
+    Fire counts "since the last valid pass", so a fire during a dropped pass (the 27 Jul - 10 Aug 2026
+    NISAR gap) is not lost. Thresholds come from noise_floor.json; a missing sigma on a valid date is an error.
+    """
     cell_order = df_grid_cells["cell_id"].tolist()
     cell_map = {cid: idx for idx, cid in enumerate(cell_order)}
     n_cells = len(cell_order)
@@ -45,15 +55,14 @@ def classify_states(df_cell_stats, df_grid_cells, df_fires, df_coherence, contex
     n_dates = len(dates)
     date_map = {d: idx for idx, d in enumerate(dates)}
 
-    sigma_arr = np.array(
-        [
-            item.get("sigma_hh_db") or item.get("sigma_manifest_db") or item.get("mean_speckle_db") or 0.12
-            for item in noise_floor.get("per_date", [])
-        ],
-        dtype=np.float64,
-    )
-    sigma_arr[sigma_arr == 0] = 0.12
-    rain_arr = np.array(context_summary.get("rain_interval_mm", []), dtype=np.float64)
+    th = noise_floor["thresholds"]
+    # context_summary dates are the full 12-day calendar; noise_floor only has the dates with radar data.
+    sigma_by_date = dict(zip(noise_floor["dates"], th["sigma_db"]))
+    sigma_list = [sigma_by_date.get(d) for d in dates]
+    change_k, deep_k = float(th["change_k"]), float(th["deep_k"])
+    rain_list = context_summary.get("rain_interval_mm", [])
+    if len(rain_list) != n_dates - 1:
+        raise ValueError(f"rain_interval_mm has {len(rain_list)} entries, expected {n_dates - 1}")
 
     d_hh_mat = np.full((n_cells, n_dates), np.nan, dtype=np.float64)
     d_hv_mat = np.full((n_cells, n_dates), np.nan, dtype=np.float64)
@@ -68,69 +77,63 @@ def classify_states(df_cell_stats, df_grid_cells, df_fires, df_coherence, contex
         ~df_cell_stats["is_dropped_date"].values
     )
 
+    fire_cols = [f"fires_int_{k}" for k in range(n_dates - 1)]
+    if [c for c in fire_cols if c not in df_fires.columns] or f"fires_int_{n_dates - 1}" in df_fires.columns:
+        raise ValueError("fires.parquet intervals do not match context_summary dates; re-run 06_context_tabular.py")
     fire_mat = np.zeros((n_cells, n_dates - 1), dtype=np.int32)
-    for k in range(n_dates - 1):
-        col = f"fires_int_{k}"
-        if col in df_fires.columns:
-            f_cidx = df_fires["cell_id"].map(cell_map).values
-            fire_mat[f_cidx, k] = df_fires[col].values
+    f_cidx = df_fires["cell_id"].map(cell_map).values
+    for k, col in enumerate(fire_cols):
+        fire_mat[f_cidx, k] = df_fires[col].values
 
+    # Coherence on the 0..100 scale (column "coh"), matched by its two dates; null where no real GUNW pair
+    # exists, including any pair that spans a missing pass.
     coh_mat = np.full((n_cells, n_dates - 1), np.nan, dtype=np.float64)
+    pair_k = {(dates[k], dates[k + 1]): k for k in range(n_dates - 1)}
+    coh_kidx = np.array([pair_k.get(p, -1) for p in zip(df_coherence["date_start"], df_coherence["date_end"])], dtype=np.int64)
+    on_cal = coh_kidx >= 0
     coh_cidx = df_coherence["cell_id"].map(cell_map).values
-    coh_kidx = df_coherence["interval_idx"].values
-    coh_mat[coh_cidx, coh_kidx] = df_coherence["coh_mean"].values
+    coh_vals = df_coherence["coh"].astype("Float64").to_numpy(dtype=np.float64, na_value=np.nan)
+    coh_mat[coh_cidx[on_cal], coh_kidx[on_cal]] = coh_vals[on_cal]
 
-    states_mat = np.zeros((n_cells, n_dates), dtype=np.int32)
+    states_mat = np.ones((n_cells, n_dates), dtype=np.int32)
     burned_before = np.zeros(n_cells, dtype=bool)
     min_d_hh = np.full(n_cells, np.inf, dtype=np.float64)
+    last_hv = np.full(n_cells, np.nan, dtype=np.float64)
+    fires_since = np.zeros(n_cells, dtype=np.int64)
+    rain_returned = False
 
     for t in range(n_dates):
-        sigma_t = sigma_arr[t]
+        if t > 0:
+            if (rain_list[t - 1] or 0.0) >= rain_return_mm:
+                rain_returned = True
+            fires_since += fire_mat[:, t - 1]
         d_hh = d_hh_mat[:, t]
         d_hv = d_hv_mat[:, t]
-        valid = valid_mat[:, t]
+        ok = valid_mat[:, t] & np.isfinite(d_hh)  # rule 1 for everything else
 
         if t == 0:
-            states_mat[:, 0] = np.where(~valid, 1, 8)
-            valid_mask = valid & ~np.isnan(d_hh)
-            min_d_hh[valid_mask] = np.minimum(min_d_hh[valid_mask], d_hh[valid_mask])
-        else:
-            k = t - 1
-            fires_k = fire_mat[:, k]
-            coh_k = coh_mat[:, k]
-            rain_k = rain_arr[k] if k < len(rain_arr) else 0.0
+            states_mat[ok, 0] = 8
+        elif ok.any():
+            sigma_t = sigma_list[t]
+            if sigma_t is None:
+                raise ValueError(f"sigma_db is null at valid date {dates[t]}")
+            with np.errstate(invalid="ignore"):
+                fire = fires_since > 0
+                hv_fell = np.isfinite(d_hv) & np.isfinite(last_hv) & (last_hv - d_hv > change_k * sigma_t)
+                coh_low = np.isfinite(coh_mat[:, t - 1]) & (coh_mat[:, t - 1] < 20)
+                rewet = rain_returned & (d_hh - min_d_hh > change_k * sigma_t)
+                s = np.select(
+                    [fire & (hv_fell | coh_low), fire, burned_before, rewet, d_hh < -deep_k * sigma_t, d_hh < -change_k * sigma_t],
+                    [2, 3, 4, 5, 6, 7],
+                    8,
+                )
+            states_mat[ok, t] = s[ok]
+            burned_before |= ok & ((s == 2) | (s == 3))
 
-            s = np.zeros(n_cells, dtype=np.int32)
-
-            cond1 = ~valid
-            s[cond1] = 1
-
-            cond2 = (~cond1) & (fires_k > 0) & ((d_hv < -2.0 * sigma_t) | (coh_k < 0.25))
-            s[cond2] = 2
-            burned_before[cond2] = True
-
-            cond3 = (~cond1) & (~cond2) & (fires_k > 0)
-            s[cond3] = 3
-            burned_before[cond3] = True
-
-            cond4 = (~cond1) & (~cond2) & (~cond3) & burned_before
-            s[cond4] = 4
-
-            cond5 = (~cond1) & (~cond2) & (~cond3) & (~cond4) & (d_hh - min_d_hh > 2.0 * sigma_t) & (rain_k > 5.0)
-            s[cond5] = 5
-
-            cond6 = (~cond1) & (~cond2) & (~cond3) & (~cond4) & (~cond5) & (d_hh < -4.0 * sigma_t)
-            s[cond6] = 6
-
-            cond7 = (~cond1) & (~cond2) & (~cond3) & (~cond4) & (~cond5) & (~cond6) & (d_hh < -2.0 * sigma_t)
-            s[cond7] = 7
-
-            cond8 = (~cond1) & (~cond2) & (~cond3) & (~cond4) & (~cond5) & (~cond6) & (~cond7)
-            s[cond8] = 8
-
-            states_mat[:, t] = s
-            valid_mask = valid & ~np.isnan(d_hh)
-            min_d_hh[valid_mask] = np.minimum(min_d_hh[valid_mask], d_hh[valid_mask])
+        min_d_hh[ok] = np.minimum(min_d_hh[ok], d_hh[ok])
+        hv_ok = ok & np.isfinite(d_hv)
+        last_hv[hv_ok] = d_hv[hv_ok]
+        fires_since[ok] = 0
 
     records = []
     for c_i, cid in enumerate(cell_order):
@@ -138,10 +141,60 @@ def classify_states(df_cell_stats, df_grid_cells, df_fires, df_coherence, contex
             records.append((cid, d_str, int(states_mat[c_i, t_i])))
 
     df_states = pd.DataFrame(records, columns=["cell_id", "date", "state"])
-    states_path = DATA_DIR / "states.parquet"
-    df_states.to_parquet(states_path, index=False)
+    if out_path is not None:
+        df_states.to_parquet(out_path, index=False)
 
     return df_states
+
+
+def run_self_test():
+    """Hand-built cells mirroring tests/mock/states.test.ts. 5 dates, sigma 0.5 dB, k 2/4, rain return 50 mm."""
+    dates = ["d0", "d1", "d2", "d3", "d4"]
+
+    def run(D=None, hv=None, coh=None, fires=None, dropped=None, rain=None, valid_fraction=1.0):
+        D = D or [0, 0, 0, 0, 0]
+        hv = hv or [0, 0, 0, 0, 0]
+        coh = coh or [50, 50, 50, 50]
+        fires = fires or [0, 0, 0, 0]
+        dropped = dropped or [False] * 5
+        rain = rain or [5, 5, 5, 5]
+        stats_df = pd.DataFrame({
+            "cell_id": ["c"] * 5, "date": dates,
+            "D_hh": [np.nan if v is None else v for v in D], "D_hv": [np.nan if v is None else v for v in hv],
+            "valid_fraction": [valid_fraction] * 5, "is_dropped_date": dropped,
+        })
+        fires_df = pd.DataFrame({"cell_id": ["c"], **{f"fires_int_{k}": [fires[k]] for k in range(4)}})
+        coh_df = pd.DataFrame({
+            "cell_id": ["c"] * 4, "date_start": dates[:-1], "date_end": dates[1:], "coh": pd.array(coh, dtype="Int64"),
+        })
+        kept = [d for d, x in zip(dates, dropped) if not x]
+        sig = dict(zip(dates, [None, 0.5, 0.5, 0.5, 0.5]))
+        noise = {"dates": kept, "thresholds": {"sigma_db": [sig[d] for d in kept], "change_k": 2, "deep_k": 4}}
+        ctx = {"dates": dates, "rain_interval_mm": rain}
+        out = classify_states(stats_df, pd.DataFrame({"cell_id": ["c"]}), fires_df, coh_df, ctx, noise, 50.0, out_path=None)
+        return out["state"].tolist()
+
+    cases = [
+        ("all stable", run(), [8, 8, 8, 8, 8]),
+        ("rule 1 dropped date", run(D=[0, 0, None, 0, 0], dropped=[False, False, True, False, False])[2], 1),
+        ("rule 1 few pixels", run(valid_fraction=0.4), [1, 1, 1, 1, 1]),
+        ("rule 2 HV drop", run(fires=[0, 3, 0, 0], hv=[0, 0, -1.2, -1.2, -1.2])[2], 2),
+        ("rule 2 low coherence", run(fires=[0, 3, 0, 0], coh=[50, 15, 50, 50])[2], 2),
+        ("rule 3 silent", run(fires=[0, 3, 0, 0])[2], 3),
+        ("rule 4 burned after", run(fires=[0, 3, 0, 0])[3:], [4, 4]),
+        ("fire beats deep drying", run(fires=[0, 3, 0, 0], D=[0, -1, -3, -3, -3])[2], 3),
+        ("rule 5 rewetting", run(D=[0, -2.5, -2.5, -1.2, -1.2], rain=[5, 5, 60, 5])[3], 5),
+        ("rule 5 not before rain", run(D=[0, -2.5, -2.5, -1.2, -1.2])[3], 7),
+        ("rule 6 deep", run(D=[0, -2.5, 0, 0, 0])[1], 6),
+        ("rule 7 drying", run(D=[0, -1.2, 0, 0, 0])[1], 7),
+        ("null coherence is not low", run(fires=[0, 3, 0, 0], coh=[50, None, 50, 50])[2], 3),
+        ("fire during a dropped pass counts next", run(D=[0, 0, None, 0, 0], dropped=[False, False, True, False, False], fires=[0, 3, 0, 0]), [8, 8, 1, 3, 4]),
+    ]
+    failed = [(name, got, want) for name, got, want in cases if got != want]
+    for name, got, want in failed:
+        print(f"[FAIL] {name}: got {got}, want {want}")
+    print(f"07_states self-test: {len(cases) - len(failed)}/{len(cases)} passed")
+    return 1 if failed else 0
 
 
 def run_statistical_tests(df_cell_stats, df_grid_cells, df_fires):
@@ -418,7 +471,18 @@ def generate_scorecard(df_states, merged_cells, test_results):
     return clean_scorecard
 
 
+def _rain_return_mm():
+    """rain_return_mm from config.yaml (build brief: 50 mm)."""
+    spec = importlib.util.spec_from_file_location("census_mod", Path(__file__).resolve().parent / "00_census.py")
+    census = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(census)
+    return float(census.load_config(PROJECT_ROOT / "config.yaml")["rain_return_mm"])
+
+
 def main():
+    if "--self-test" in sys.argv:
+        sys.exit(run_self_test())
+
     data = load_pipeline_data()
 
     df_states = classify_states(
@@ -428,6 +492,7 @@ def main():
         data["df_coherence"],
         data["context_summary"],
         data["noise_floor"],
+        rain_return_mm=_rain_return_mm(),
     )
 
     print("df['state'].value_counts():")

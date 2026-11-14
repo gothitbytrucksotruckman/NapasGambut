@@ -1,4 +1,6 @@
 // State rules, PRD 6.6. Pure: one cell in, one state code per date out. First match wins.
+// "Fire in the interval ending at this date" is read as "fire since the last valid pass" (the Method text's wording);
+// the two agree when no pass is dropped. pipeline/07_states.py must apply the same rules.
 import { STATE } from '../../src/contract';
 
 export interface CellInput {
@@ -19,9 +21,12 @@ export function classifyCell(x: CellInput): number[] {
   let rainReturned = false;
   let minD = Infinity;
   let lastHv: number | null = null;
+  // Detections since the last valid pass: a fire during a dropped pass (e.g. a satellite data gap) is not lost.
+  let firesSince = 0;
 
   for (let t = 0; t < x.dropped.length; t++) {
     if (t > 0 && (x.rainInterval[t - 1] ?? 0) >= x.k.rainReturn) rainReturned = true;
+    if (t > 0) firesSince += x.fires[t - 1] ?? 0;
 
     if (x.dropped[t] || x.nPixels < 313) {
       out.push(STATE.no_data);
@@ -33,11 +38,13 @@ export function classifyCell(x: CellInput): number[] {
       out.push(D === null ? STATE.no_data : STATE.stable);
       if (D !== null) minD = Math.min(minD, D);
       if (hv !== null) lastHv = hv;
+      if (D !== null) firesSince = 0;
       continue;
     }
     const sigma = x.sigma[t];
     if (sigma === null) throw new Error(`sigma missing at valid date ${t}`);
-    const fire = (x.fires[t - 1] ?? 0) > 0;
+    const fire = firesSince > 0;
+    firesSince = 0;
     const coh = x.coh[t - 1];
     const hvFell = hv !== null && lastHv !== null && lastHv - hv > x.k.change * sigma;
     const cohLow = coh !== null && coh < 20;

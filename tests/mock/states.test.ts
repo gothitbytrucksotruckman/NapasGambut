@@ -64,4 +64,9 @@ describe('state rules (first match wins)', () => {
     });
     expect(s[3]).toBe(2);
   });
+  it('a fire in the interval ending on a dropped date counts at the next valid date', () => {
+    // Real NISAR data has a permanent gap: the fire happens while the radar has no pass.
+    const s = run({ dropped: [false, false, true, false, false], D: [0, 0, null, 0, 0], fires: [0, 3, 0, 0] });
+    expect(s).toEqual([8, 8, 1, 3, 4]);
+  });
 });
