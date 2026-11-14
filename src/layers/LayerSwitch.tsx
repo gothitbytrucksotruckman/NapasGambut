@@ -3,17 +3,43 @@ import { LAYERS, type Lang, type LayerId } from '../state/hash';
 import { type Key, t } from '../i18n';
 import './LayerSwitch.css';
 
-export function LayerSwitch({ layer, lang, onChange }: { layer: LayerId; lang: Lang; onChange: (l: LayerId) => void }) {
+export function LayerSwitch({
+  layer,
+  lang,
+  onChange,
+  hasCoherence = true,
+}: {
+  layer: LayerId;
+  lang: Lang;
+  onChange: (l: LayerId) => void;
+  hasCoherence?: boolean;
+}) {
   return (
     <fieldset className="layer-switch">
       <legend className="layer-switch__legend">{t(lang, 'layer.label')}</legend>
       <div className="layer-switch__opts">
-        {LAYERS.map((l) => (
-          <label key={l} className={l === layer ? 'is-on' : undefined}>
-            <input type="radio" name="map-layer" value={l} checked={l === layer} onChange={() => onChange(l)} />
-            {t(lang, `layer.${l}` as Key)}
-          </label>
-        ))}
+        {LAYERS.map((l) => {
+          const disabled = l === 'coh' && !hasCoherence;
+          return (
+            <label
+              key={l}
+              className={l === layer ? 'is-on' : disabled ? 'is-disabled' : undefined}
+              title={disabled ? t(lang, 'pulse.noCoherence') : undefined}
+            >
+              <input
+                type="radio"
+                name="map-layer"
+                value={l}
+                checked={l === layer}
+                disabled={disabled}
+                onChange={() => {
+                  if (!disabled) onChange(l);
+                }}
+              />
+              {t(lang, `layer.${l}` as Key)}
+            </label>
+          );
+        })}
       </div>
     </fieldset>
   );

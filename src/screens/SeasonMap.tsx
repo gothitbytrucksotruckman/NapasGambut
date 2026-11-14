@@ -4,7 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { useEffect, useRef, useState } from 'react';
 import { Legend } from '../components/Legend';
 import { Timeline } from '../components/Timeline';
-import { droppedReason, isDropped } from '../data/selectors';
+import { droppedReason, hasCoherence, isDropped } from '../data/selectors';
 import { formatDate, t } from '../i18n';
 import { LayerSwitch } from '../layers/LayerSwitch';
 import { addRadarLayer, applyValues, fillColorFor, RADAR_LAYER, showRadar } from '../layers/mapLayers';
@@ -156,7 +156,7 @@ export function SeasonMap() {
           </p>
         )}
         <div className="season__tools">
-          <LayerSwitch layer={layer} lang={lang} onChange={(l) => dispatch({ type: 'setLayer', layer: l })} />
+          <LayerSwitch layer={layer} lang={lang} hasCoherence={hasCoherence(bundle)} onChange={(l) => dispatch({ type: 'setLayer', layer: l })} />
           <div className="season__basemap">
             <label htmlFor="basemap">{t(lang, 'map.basemap')}</label>
             <select id="basemap" value={basemap} onChange={(e) => dispatch({ type: 'setBasemap', basemap: e.target.value as 'osm' | 'none' })}>

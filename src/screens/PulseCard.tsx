@@ -57,6 +57,10 @@ export function PulseCard() {
   const stateKey = (c: number) => `state.${c}` as `state.${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`;
   const hh = mainSeries(data, 'hh'), hv = mainSeries(data, 'hv');
   const f1 = (v: number | null) => (v === null ? '' : v.toFixed(1));
+  const rain3d = (i: number) => {
+    const v = context.rain_3day_mm[i];
+    return v === null || v === undefined ? '' : `${v} mm`;
+  };
 
   return (
     <aside className="pulse" ref={panel} tabIndex={-1} aria-labelledby="pulse-h">
@@ -111,6 +115,7 @@ export function PulseCard() {
                 <th scope="col">{t(lang, 'pulse.th.hv')}</th>
                 <th scope="col">{t(lang, 'pulse.th.coh')}</th>
                 <th scope="col">{t(lang, 'pulse.th.rain')}</th>
+                <th scope="col">{t(lang, 'pulse.th.rain3d')}</th>
                 <th scope="col">{t(lang, 'pulse.th.fire')}</th>
               </tr>
             </thead>
@@ -123,6 +128,7 @@ export function PulseCard() {
                   <td>{f1(hv[i])}</td>
                   <td>{i > 0 ? cs.coh[i - 1] ?? '' : ''}</td>
                   <td>{i > 0 ? context.rain_interval_mm[i - 1] ?? '' : ''}</td>
+                  <td>{rain3d(i)}</td>
                   <td>{i > 0 && cs.fires[i - 1] ? cs.fires[i - 1] : ''}</td>
                 </tr>
               ))}

@@ -72,6 +72,7 @@ export function PulseChart({ data, mode, current, lang, title }: Props) {
   const mkBand = area<P>().defined((p) => p[1] !== null).x((p) => x(p[0])).y0((p) => y(-p[1]!)).y1((p) => y(p[1]!));
 
   // Coherence as steps: a flat segment across each interval.
+  const hasCoh = data.coh.some((v) => v !== null);
   const cohSegs = data.coh.map((v, k) => (v === null ? null : { x0: x(k), x1: x(k + 1), y: yc(v) }));
 
   // Fire markers sit in the middle of their interval; filled when the state at the interval end is fire_radar.
@@ -139,7 +140,18 @@ export function PulseChart({ data, mode, current, lang, title }: Props) {
         <line x1={PAD.l} x2={W - PAD.r} y1={BAND.coh[1]} y2={BAND.coh[1]} className="pulse-chart__grid" />
         <text x={PAD.l - 6} y={BAND.coh[0] + 4} className="pulse-chart__tick num" textAnchor="end">100</text>
         <text x={PAD.l - 6} y={BAND.coh[1] + 4} className="pulse-chart__tick num" textAnchor="end">0</text>
-        {cohSegs.map((s, k) => s && <line key={k} x1={s.x0 + 1} x2={s.x1 - 1} y1={s.y} y2={s.y} className="pulse-chart__coh" />)}
+        {hasCoh ? (
+          cohSegs.map((s, k) => s && <line key={k} x1={s.x0 + 1} x2={s.x1 - 1} y1={s.y} y2={s.y} className="pulse-chart__coh" />)
+        ) : (
+          <text
+            x={(PAD.l + W - PAD.r) / 2}
+            y={(BAND.coh[0] + BAND.coh[1]) / 2 + 4}
+            className="pulse-chart__tick"
+            textAnchor="middle"
+          >
+            {t(lang, 'pulse.noCoherence')}
+          </text>
+        )}
 
         {/* rain bars per interval */}
         <line x1={PAD.l} x2={W - PAD.r} y1={BAND.rain[1]} y2={BAND.rain[1]} className="pulse-chart__grid" />
@@ -168,7 +180,7 @@ export function PulseChart({ data, mode, current, lang, title }: Props) {
       <p className="pulse-chart__readout num" aria-live="off">
         <strong>{formatDate(data.dates[focus], lang)}</strong>
         {' · '}{modeLabel}: {f1(main[focus])}
-        {focus > 0 && <>{' · '}{t(lang, 'pulse.axis.coh')}: {data.coh[focus - 1] ?? '–'}{' · '}{t(lang, 'pulse.axis.rain')}: {data.rain[focus - 1] ?? '–'}</>}
+        {focus > 0 && <>{' · '}{t(lang, 'pulse.axis.coh')}: {hasCoh ? (data.coh[focus - 1] ?? '–') : t(lang, 'pulse.noCoherence')}{' · '}{t(lang, 'pulse.axis.rain')}: {data.rain[focus - 1] ?? '–'}</>}
       </p>
     </figure>
   );

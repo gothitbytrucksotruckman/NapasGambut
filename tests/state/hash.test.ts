@@ -18,6 +18,10 @@ describe('url hash', () => {
       screen: 'reveal', dateIndex: 0, selectedCell: null, layer: 'state', lang: 'en',
     });
   });
+  it('falls back from layer=coh to state when coherence is absent', () => {
+    expect(parseHash('#/map?layer=coh', { ...ctx, hasCoherence: false }).layer).toBe('state');
+    expect(parseHash('#/map?layer=coh', { ...ctx, hasCoherence: true }).layer).toBe('coh');
+  });
   it('drops a malformed cell id', () => {
     expect(parseHash('#/map?cell=<script>', ctx).selectedCell).toBeNull();
   });
