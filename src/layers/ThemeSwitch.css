@@ -1,0 +1,8 @@
+.theme-switch select {
+  min-height: var(--tap);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: var(--fs-sm);
+}
