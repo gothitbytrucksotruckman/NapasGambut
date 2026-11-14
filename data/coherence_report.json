@@ -1,0 +1,134 @@
+{
+  "schema_version": "0.1",
+  "dates": [
+    "2026-06-22",
+    "2026-07-04",
+    "2026-07-16",
+    "2026-08-21",
+    "2026-09-02",
+    "2026-09-14",
+    "2026-09-26",
+    "2026-10-08",
+    "2026-10-20",
+    "2026-11-01"
+  ],
+  "n_intervals": 9,
+  "n_cells": 12210,
+  "gunw_scenes_found": 0,
+  "gunw_layers_inspected": [],
+  "per_interval": [
+    {
+      "interval_idx": 0,
+      "date_start": "2026-06-22",
+      "date_end": "2026-07-04",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.3881,
+      "median_coh": 0.3924,
+      "dropped": false
+    },
+    {
+      "interval_idx": 1,
+      "date_start": "2026-07-04",
+      "date_end": "2026-07-16",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.3746,
+      "median_coh": 0.3788,
+      "dropped": false
+    },
+    {
+      "interval_idx": 2,
+      "date_start": "2026-07-16",
+      "date_end": "2026-08-21",
+      "gap_days": 36,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.2732,
+      "median_coh": 0.2766,
+      "dropped": false
+    },
+    {
+      "interval_idx": 3,
+      "date_start": "2026-08-21",
+      "date_end": "2026-09-02",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.375,
+      "median_coh": 0.379,
+      "dropped": false
+    },
+    {
+      "interval_idx": 4,
+      "date_start": "2026-09-02",
+      "date_end": "2026-09-14",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.3797,
+      "median_coh": 0.3837,
+      "dropped": false
+    },
+    {
+      "interval_idx": 5,
+      "date_start": "2026-09-14",
+      "date_end": "2026-09-26",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.3807,
+      "median_coh": 0.3843,
+      "dropped": false
+    },
+    {
+      "interval_idx": 6,
+      "date_start": "2026-09-26",
+      "date_end": "2026-10-08",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.3818,
+      "median_coh": 0.3853,
+      "dropped": false
+    },
+    {
+      "interval_idx": 7,
+      "date_start": "2026-10-08",
+      "date_end": "2026-10-20",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.3815,
+      "median_coh": 0.3852,
+      "dropped": false
+    },
+    {
+      "interval_idx": 8,
+      "date_start": "2026-10-20",
+      "date_end": "2026-11-01",
+      "gap_days": 12,
+      "source": "gcov_radiometric_fallback",
+      "scene_name": null,
+      "valid_cells": 12210,
+      "mean_coh": 0.3337,
+      "median_coh": 0.3387,
+      "dropped": false
+    }
+  ],
+  "geometry_used": {
+    "track": "126",
+    "frame": "001",
+    "flightDirection": "A"
+  }
+}

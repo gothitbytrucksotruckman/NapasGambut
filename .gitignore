@@ -1,12 +1,9 @@
-# Environment & Secrets
+# Secrets & Environment
 .env
 .env.*
 !.env.example
 *.netrc
 _netrc
-
-# Data
-data/
 
 # Node / Frontend
 node_modules/
@@ -26,6 +23,8 @@ data/*.h5
 data/*.nc
 data/*.tif
 data/*.zarr/
+data/batch_*.zarr/
+data/cube_batch_*.zarr/
 data/parts_batch_*/
 data/qc_report.json
 docs/references/*.pdf
