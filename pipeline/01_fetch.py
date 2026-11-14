@@ -4,18 +4,20 @@ import importlib.util
 import io
 import json
 import os
+from pathlib import Path
 import shutil
 import time
-from pathlib import Path
 
 import certifi
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
 
+import fsspec
 import h5py
 import numpy as np
 import requests
+import rioxarray  # noqa: F401
 import xarray as xr
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -27,14 +29,13 @@ _spec.loader.exec_module(_census)
 
 load_config = _census.load_config
 get_earthdata_token = _census.get_earthdata_token
+parse_gcov_filename = _census.parse_gcov_filename
 resolve_signed_s3_url = _census.resolve_signed_s3_url
 
 LAYERS = ["HHHH", "HVHV", "mask", "numberOfLooks"]
 
 
 class AutoRefreshRangeFile(io.RawIOBase):
-    """Fast HTTP Range reader: 64 KB metadata cache + direct chunk reads + auto 403 URL refresh."""
-
     def __init__(self, orig_url, token, block_size=64 * 1024):
         super().__init__()
         self.orig_url = orig_url
@@ -61,7 +62,6 @@ class AutoRefreshRangeFile(io.RawIOBase):
                 hdrs["Range"] = f"bytes={start}-{end}"
                 r = self.session.get(self.url, headers=hdrs, timeout=45)
                 if r.status_code in (401, 403):
-                    print("      [AUTH] Refreshing expired CloudFront URL...", flush=True)
                     self._refresh_url()
                     continue
                 r.raise_for_status()
@@ -117,7 +117,6 @@ class AutoRefreshRangeFile(io.RawIOBase):
         if size == 0:
             return b""
 
-        # Direct HTTP Range request for HDF5 data chunks (> 64 KB)
         if size > self.block_size:
             start = self.pos
             end = min(self.size - 1, start + size - 1)
@@ -151,6 +150,55 @@ class AutoRefreshRangeFile(io.RawIOBase):
         super().close()
 
 
+def _extract_acq_date(row):
+    fname = row.get("scene_name") or Path(row.get("url", "")).name
+    parsed = parse_gcov_filename(fname, url=row.get("url", ""))
+    if parsed and parsed.get("date"):
+        return parsed["date"]
+    return row["date"]
+
+
+def _load_census_rows(csv_path, batch=None, start_idx=None, end_idx=None):
+    rows = []
+    with Path(csv_path).open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            row["date"] = _extract_acq_date(row)
+            rows.append(row)
+    rows = sorted(rows, key=lambda r: r["date"])
+
+    if start_idx is not None or end_idx is not None:
+        s = 0 if start_idx is None else int(start_idx)
+        e = len(rows) if end_idx is None else int(end_idx)
+        return rows[s:e]
+
+    if batch and batch.upper() != "ALL":
+        rows = [r for r in rows if r.get("batch", "").strip().upper() == batch.upper()]
+    return rows
+
+
+def stream_scene_datatree(url, study_box, token, acq_date):
+    minx, miny, maxx, maxy = study_box
+    fs = fsspec.filesystem("http", headers={"Authorization": f"Bearer {token}"})
+    with fs.open(url, mode="rb") as f:
+        dt = xr.open_datatree(
+            f,
+            engine="h5netcdf",
+            group="/science/LSAR/GCOV/grids/frequencyA",
+            chunks="auto",
+        )
+        ds = dt.to_dataset()
+        epsg = int(ds["projection"].values.item()) if "projection" in ds else 32749
+        avail = [v for v in LAYERS if v in ds]
+        sub = ds[avail].rename({"xCoordinates": "x", "yCoordinates": "y"})
+        sub = sub.rio.write_crs(f"EPSG:{epsg}")
+        clipped = sub.rio.clip_box(minx, miny, maxx, maxy, crs="EPSG:4326").load()
+        clipped = clipped.expand_dims(time=np.array([acq_date], dtype="<U10"))
+        clipped.attrs.update({"epsg": epsg, "crs": f"EPSG:{epsg}"})
+        return clipped
+
+
+# AI-generated (lines 202-344)
 def _wgs84_to_utm_xy(lon, lat, epsg=32749):
     epsg_int = int(epsg)
     south = 32701 <= epsg_int <= 32760
@@ -198,18 +246,6 @@ def _wgs84_to_utm_xy(lon, lat, epsg=32749):
     return float(x), float(y)
 
 
-def _load_census_rows(csv_path, batch=None):
-    rows = []
-    with Path(csv_path).open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if batch and batch.upper() != "ALL":
-                if row.get("batch", "").strip().upper() != batch.upper():
-                    continue
-            rows.append(row)
-    return sorted(rows, key=lambda r: r["date"])
-
-
 def _build_canonical_utm_grid(study_box, epsg=32749, posting_m=20.0):
     minx, miny, maxx, maxy = study_box
     ux0, uy0 = _wgs84_to_utm_xy(minx, miny, epsg=epsg)
@@ -229,7 +265,7 @@ def _build_canonical_utm_grid(study_box, epsg=32749, posting_m=20.0):
 
 def _stream_single_scene(row, study_box, token, retries=3):
     url = row["url"]
-    acq_date = row["date"]
+    acq_date = _extract_acq_date(row)
     minx, miny, maxx, maxy = study_box
 
     last_err = None
@@ -289,7 +325,7 @@ def _stream_single_scene(row, study_box, token, retries=3):
                 f"| EPSG:{epsg} | {elapsed}s",
                 flush=True,
             )
-            return xr.Dataset(
+            ds_out = xr.Dataset(
                 data_vars=data_vars,
                 coords={
                     "time": np.array([acq_date], dtype="<U10"),
@@ -298,12 +334,15 @@ def _stream_single_scene(row, study_box, token, retries=3):
                 },
                 attrs={"epsg": epsg, "crs": f"EPSG:{epsg}"},
             )
+            ds_out = ds_out.rio.write_crs(f"EPSG:{epsg}")
+            return ds_out
         except Exception as exc:
             last_err = exc
             print(f"\n  [WARN] Attempt {attempt}/{retries} failed for {acq_date}: {exc}", flush=True)
             time.sleep(3 * attempt)
 
     raise RuntimeError(f"Failed to stream scene {acq_date} after {retries} retries: {last_err}")
+# End AI-generated (lines 202-344)
 
 
 def _generate_dry_run_scene(row, study_box, idx):
@@ -317,7 +356,7 @@ def _generate_dry_run_scene(row, study_box, idx):
     mask = np.ones(shape, dtype=np.uint8)
     looks = np.full(shape, 4.0, dtype=np.float32)
 
-    return xr.Dataset(
+    ds = xr.Dataset(
         data_vars={
             "HHHH": (("time", "y", "x"), hhhh),
             "HVHV": (("time", "y", "x"), hvhv),
@@ -325,18 +364,28 @@ def _generate_dry_run_scene(row, study_box, idx):
             "numberOfLooks": (("time", "y", "x"), looks),
         },
         coords={
-            "time": np.array([row["date"]], dtype="<U10"),
+            "time": np.array([_extract_acq_date(row)], dtype="<U10"),
             "y": y_sub,
             "x": x_sub,
         },
         attrs={"epsg": epsg, "crs": f"EPSG:{epsg}"},
     )
+    return ds.rio.write_crs(f"EPSG:{epsg}")
 
 
 def _align_to_ref_grid(ds, y_ref, x_ref):
     if np.array_equal(ds.y.values, y_ref) and np.array_equal(ds.x.values, x_ref):
         return ds
     return ds.reindex(y=y_ref, x=x_ref, method="nearest", tolerance=20.0)
+
+
+def _write_zarr(ds, target_path):
+    for var in ds.variables:
+        ds[var].encoding.pop("chunks", None)
+    try:
+        ds.chunk({"time": 1, "y": 512, "x": 512}).to_zarr(target_path, mode="w")
+    except ImportError:
+        ds.to_zarr(target_path, mode="w")
 
 
 def _save_zarr_with_alias(ds, primary_path, alias_path=None):
@@ -348,10 +397,7 @@ def _save_zarr_with_alias(ds, primary_path, alias_path=None):
             shutil.rmtree(primary)
     primary.parent.mkdir(parents=True, exist_ok=True)
 
-    for var in ds.variables:
-        ds[var].encoding.pop("chunks", None)
-    chunked = ds.chunk({"time": 1, "y": 512, "x": 512})
-    chunked.to_zarr(primary, mode="w")
+    _write_zarr(ds, primary)
     print(f"[SAVED] Zarr cube written to: {primary}", flush=True)
 
     if alias_path:
@@ -370,14 +416,21 @@ def _save_zarr_with_alias(ds, primary_path, alias_path=None):
                 print(f"[ALIAS] Copied {primary} -> {alias}", flush=True)
 
 
-def run_fetch(cfg, batch="B", token="", dry_run=False):
+def run_fetch(cfg, batch="A", start_idx=None, end_idx=None, token="", dry_run=False):
     csv_rel = cfg.get("census_csv", "data/census.csv")
     csv_path = Path(csv_rel) if Path(csv_rel).is_absolute() else PROJECT_ROOT / csv_rel
     study_box = list(cfg["study_box"])
 
-    rows = _load_census_rows(csv_path, batch=batch)
+    rows = _load_census_rows(csv_path, batch=batch, start_idx=start_idx, end_idx=end_idx)
     if not rows:
-        raise ValueError(f"No scenes found in {csv_path} for batch={batch}")
+        raise ValueError(f"No scenes found in {csv_path} for batch={batch} slice=({start_idx}, {end_idx})")
+
+    if start_idx is not None or end_idx is not None:
+        batches_in_slice = {r.get("batch", "A").strip().upper() for r in rows}
+        if len(batches_in_slice) == 1:
+            batch = next(iter(batches_in_slice))
+        else:
+            batch = "ALL"
 
     if not dry_run and not token:
         token = get_earthdata_token()
@@ -390,8 +443,8 @@ def run_fetch(cfg, batch="B", token="", dry_run=False):
     parts_dir.mkdir(parents=True, exist_ok=True)
 
     print(
-        f"=== Starting 01_fetch.py | Batch={batch.upper()} | Scenes={len(rows)} "
-        f"| Mode={'DRY-RUN' if dry_run else 'LIVE-STREAM'} ===",
+        f"Running 01_fetch.py | Batch={batch.upper()} | Scenes={len(rows)} "
+        f"| Mode={'DRY-RUN' if dry_run else 'LIVE-STREAM'}",
         flush=True,
     )
 
@@ -408,7 +461,7 @@ def run_fetch(cfg, batch="B", token="", dry_run=False):
                 ds_scene = _generate_dry_run_scene(row, study_box, idx)
             else:
                 ds_scene = _stream_single_scene(row, study_box, token=token)
-                ds_scene.chunk({"time": 1, "y": 512, "x": 512}).to_zarr(part_path, mode="w")
+                _write_zarr(ds_scene, part_path)
                 print(f"    [CHECKPOINT] Saved {part_path}", flush=True)
 
         if y_ref is None:
@@ -418,7 +471,7 @@ def run_fetch(cfg, batch="B", token="", dry_run=False):
             ds_scene = _align_to_ref_grid(ds_scene, y_ref, x_ref)
         datasets.append(ds_scene)
 
-    cube = xr.concat(datasets, dim="time")
+    cube = xr.concat(datasets, dim="time").sortby("time")
     epsg = int(datasets[0].attrs.get("epsg", 32749))
     cube.attrs.update(
         {
@@ -472,6 +525,19 @@ def merge_batches(cfg):
     ds_b_aligned = _align_to_ref_grid(ds_b, ds_a.y.values, ds_a.x.values)
 
     merged = xr.concat([ds_a, ds_b_aligned], dim="time").sortby("time")
+    all_dates = [str(d) for d in merged.time.values]
+    merged.attrs.update(
+        {
+            "epsg": int(ds_a.attrs.get("epsg", 32749)),
+            "crs": ds_a.attrs.get("crs", "EPSG:32749"),
+            "study_box": ds_a.attrs.get("study_box", json.dumps(list(cfg["study_box"]))),
+            "track": ds_a.attrs.get("track", "126"),
+            "frame": ds_a.attrs.get("frame", "001"),
+            "flightDirection": ds_a.attrs.get("flightDirection", "A"),
+            "batch": "MERGED",
+            "dates": json.dumps(all_dates),
+        }
+    )
     out_path = PROJECT_ROOT / cfg.get("merged_cube_zarr", "data/gcov_cube.zarr")
     _save_zarr_with_alias(merged, out_path)
     return merged
@@ -485,20 +551,29 @@ def main():
     parser.add_argument(
         "--batch",
         type=str,
-        default="B",
+        default="A",
         choices=["A", "B", "ALL", "a", "b", "all"],
-        help="Which batch from census.csv to stream (default: B).",
+        help="Which batch from census.csv to stream (default: A).",
     )
+    parser.add_argument("--start-idx", type=int, default=None, help="Start index in census.csv (0-based, inclusive).")
+    parser.add_argument("--end-idx", type=int, default=None, help="End index in census.csv (0-based, exclusive).")
     parser.add_argument("--token", type=str, default="", help="Earthdata Bearer token.")
     parser.add_argument("--merge", action="store_true", help="Merge Batch A and B into gcov_cube.zarr.")
-    parser.add_argument("--dry-run", action="store_true", help="Generate synthetic Zarr cube offline.")
+    parser.add_argument("--dry-run", "--self-test", dest="dry_run", action="store_true", help="Generate synthetic Zarr cube offline.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     if args.merge:
         merge_batches(cfg)
     else:
-        run_fetch(cfg, batch=args.batch, token=args.token, dry_run=args.dry_run)
+        run_fetch(
+            cfg,
+            batch=args.batch,
+            start_idx=args.start_idx,
+            end_idx=args.end_idx,
+            token=args.token,
+            dry_run=args.dry_run,
+        )
 
 
 if __name__ == "__main__":
