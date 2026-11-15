@@ -1,10 +1,31 @@
 // Scorecard, PRD 5.9 and 6.7. Descriptive statistics on simulated data.
-import { STATE, type Scorecard } from '../../src/contract';
-import type { Landscape } from './landscape';
+import { STATE, type CanalRanking, type Scorecard } from '../../src/contract';
+import { canalId, type Landscape, type LonLat } from './landscape';
 import { median, quantile, round, spearman } from './stats';
 
 const NOTE_EN = 'Descriptive only, computed on simulated data. Not evidence about real peat.';
 const NOTE_ID = 'Hanya deskriptif, dihitung dari data simulasi. Bukan bukti tentang gambut nyata.'; // REVIEW
+
+const KM_PER_DEG_LAT = 110.574;
+function pointToSegmentKm(p: LonLat, a: LonLat, b: LonLat): number {
+  const cosLat = Math.cos((((a[1] + b[1]) * 0.5) * Math.PI) / 180);
+  const kmLon = 111.32 * cosLat;
+  const px = (p[0] - a[0]) * kmLon, py = (p[1] - a[1]) * KM_PER_DEG_LAT;
+  const vx = (b[0] - a[0]) * kmLon, vy = (b[1] - a[1]) * KM_PER_DEG_LAT;
+  const len2 = vx * vx + vy * vy;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, (px * vx + py * vy) / len2)) : 0;
+  return Math.hypot(px - t * vx, py - t * vy);
+}
+
+function lineLengthKm(coords: LonLat[]): number {
+  let len = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const a = coords[i - 1], b = coords[i];
+    const kmLon = 111.32 * Math.cos((((a[1] + b[1]) * 0.5) * Math.PI) / 180);
+    len += Math.hypot((b[0] - a[0]) * kmLon, (b[1] - a[1]) * KM_PER_DEG_LAT);
+  }
+  return len;
+}
 
 interface Input {
   land: Landscape;
@@ -84,10 +105,40 @@ export function buildScorecard({ land, D, states, dates, peakIndex }: Input): Sc
     .filter((v): v is number => v !== null)
     .map(Math.abs);
 
+  const isBurnedOrFire = (s: number) => s === STATE.fire_radar || s === STATE.fire_silent || s === STATE.burned;
+  const anyBurnedState = (i: number) => states[i].some(isBurnedOrFire);
+  const peatCellIdx = cells
+    .map((c, i) => ({ c, i }))
+    .filter(({ c, i }) => minInfo[i].min !== null && (c.cls === 'drained' || c.cls === 'rewetted' || c.cls === 'plantation'));
+
+  const canals: CanalRanking[] = land.canals
+    .map((coords, ci): CanalRanking | null => {
+      const matched = peatCellIdx.filter(({ c }) => {
+        for (let s = 1; s < coords.length; s++) {
+          if (pointToSegmentKm(c.centroid, coords[s - 1], coords[s]) <= 1.0) return true;
+        }
+        return false;
+      });
+      if (!matched.length) return null;
+      const mins = matched.map(({ i }) => minInfo[i].min!);
+      return {
+        canal: canalId(ci),
+        name_en: `Canal #${ci + 1}`,
+        name_id: `Kanal #${ci + 1}`,
+        length_km: round(lineLengthKm(coords), 2),
+        n_cells: matched.length,
+        median_min_hh_db: round(median(mins), 1),
+        n_burned_cells: matched.filter(({ i }) => anyBurnedState(i)).length,
+      };
+    })
+    .filter((v): v is CanalRanking => v !== null)
+    .sort((a, b) => a.median_min_hh_db - b.median_min_hh_db || b.n_burned_cells - a.n_burned_cells || a.canal.localeCompare(b.canal))
+    .slice(0, 20);
+
   const rew = by_class[1], dr = by_class[0];
   return {
     by_class,
-    rankings: { fastest_drying, dams_to_inspect },
+    rankings: { fastest_drying, dams_to_inspect, canals },
     tests: [
       {
         id: 'canal_vs_drying',

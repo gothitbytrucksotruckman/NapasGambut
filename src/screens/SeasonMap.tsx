@@ -13,7 +13,7 @@ import type { RampLayer } from '../layers/ramps';
 import { cssVar } from '../data/states';
 import {
   addHatchImage, applyStates, buildStyle, CELLS, CELLS_FILL, hollowOpacityExpr, repaint, setCellsVisible, setHatchFilter,
-  setSelected, stateColorExpr,
+  setSelected, setSelectedCanal, stateColorExpr,
 } from '../map/layers';
 import { useApp } from '../state/store';
 import { PulseCard } from './PulseCard';
@@ -39,7 +39,7 @@ export function SeasonMap() {
   const mapRef = useRef<MLMap | null>(null);
   const [ready, setReady] = useState(false);
   const [webgl] = useState(hasWebGL);
-  const { lang, dateIndex, selectedCell, basemap, layer } = state;
+  const { lang, dateIndex, selectedCell, selectedCanal, basemap, layer } = state;
   // Bumped when the theme changes, so map colours are re-read from the tokens.
   const [themeTick, setThemeTick] = useState(0);
   useEffect(() => {
@@ -132,6 +132,27 @@ export function SeasonMap() {
     else map.flyTo({ center: f.properties.centroid, zoom, offset, duration: 700 });
     if (reducedMotion()) map.panBy(offset.map((v) => -v) as [number, number], { animate: false });
   }, [ready, bundle, selectedCell]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    setSelectedCanal(map, selectedCanal);
+    if (!selectedCanal) return;
+    const f = bundle.contextFeatures.features.find(
+      (feat) => feat.properties.id === selectedCanal && feat.geometry.type === 'LineString',
+    );
+    if (!f || f.geometry.type !== 'LineString' || f.geometry.coordinates.length === 0) return;
+    let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+    for (const [lon, lat] of f.geometry.coordinates) {
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    }
+    if (maxLon - minLon < 0.004) { minLon -= 0.002; maxLon += 0.002; }
+    if (maxLat - minLat < 0.004) { minLat -= 0.002; maxLat += 0.002; }
+    map.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 48, maxZoom: 13.5, duration: reducedMotion() ? 0 : 700 });
+  }, [ready, bundle, selectedCanal]);
 
   useEffect(() => {
     const map = mapRef.current;

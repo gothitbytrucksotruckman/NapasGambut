@@ -9,6 +9,7 @@ export type Basemap = 'osm' | 'none';
 export interface AppState extends View {
   playing: boolean;
   basemap: Basemap;
+  selectedCanal: string | null;
 }
 
 type Action =
@@ -17,6 +18,7 @@ type Action =
   | { type: 'setDate'; index: number }
   | { type: 'step'; delta: 1 | -1 }
   | { type: 'select'; cell: string | null }
+  | { type: 'selectCanal'; canal: string | null }
   | { type: 'setLayer'; layer: LayerId }
   | { type: 'togglePlay' }
   | { type: 'stop' }
@@ -31,7 +33,8 @@ function reducer(n: number, allowCoh = true) {
       case 'go': return { ...s, screen: a.screen, playing: false };
       case 'setDate': return { ...s, dateIndex: clamp(a.index) };
       case 'step': return { ...s, dateIndex: clamp(s.dateIndex + a.delta), playing: false };
-      case 'select': return { ...s, selectedCell: a.cell };
+      case 'select': return { ...s, selectedCell: a.cell, selectedCanal: a.cell ? null : s.selectedCanal };
+      case 'selectCanal': return { ...s, selectedCanal: a.canal, selectedCell: a.canal ? null : s.selectedCell };
       case 'setLayer': return { ...s, layer: a.layer === 'coh' && !allowCoh ? 'state' : a.layer };
       // Pressing play on the last pass restarts from the first.
       case 'togglePlay': return s.playing ? { ...s, playing: false } : { ...s, playing: true, dateIndex: s.dateIndex >= n - 1 ? 0 : s.dateIndex };
@@ -61,6 +64,7 @@ export function AppProvider({ bundle, children }: { bundle: Bundle; children: Re
     ...parseHash(location.hash, ctx),
     playing: false,
     basemap: 'osm' as Basemap,
+    selectedCanal: null,
   }));
 
   // State -> URL. Screen changes push history (Back works); scrubbing replaces (no history spam).

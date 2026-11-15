@@ -1,0 +1,36 @@
+# Pinned Python dependencies for the Napas Gambut radar & geospatial pipeline (pipeline/*.py)
+
+# Core numerical, tabular, and statistical packages
+numpy==2.5.3
+pandas==3.0.6
+scipy==1.18.1
+scikit-learn==1.9.1
+joblib==1.6.0
+
+# Multidimensional arrays, Zarr / HDF5 cubes, and raster I/O
+xarray==2026.9.0
+zarr==3.4.2
+numcodecs==0.17.1
+pyarrow==26.0.1
+fsspec==2026.9.0
+s3fs==2026.9.0
+h5py==3.13.0
+h5netcdf==1.5.0
+rasterio==1.4.3
+rioxarray==0.18.2
+
+# Geospatial vectors, projections, and OpenStreetMap fallback
+geopandas==1.0.1
+shapely==2.0.7
+pyproj==3.7.1
+osmium==4.0.2
+
+# NASA Earthdata, ASF, HTTP clients, configuration, and rendering
+asf-search==8.1.0
+earthaccess==0.14.0
+requests==2.34.2
+certifi==2026.7.22
+PyYAML==6.0.3
+python-dotenv==1.2.4
+matplotlib==3.11.2
+pillow==12.3.0

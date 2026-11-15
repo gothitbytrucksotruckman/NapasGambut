@@ -32,7 +32,7 @@ export const BUNDLE_FILES = {
 
 // 5.4
 export const ManifestSchema = z.object({
-  schema_version: z.literal('0.1'),
+  schema_version: z.enum(['0.1', '0.2']),
   data_kind: z.enum(['mock', 'nisar']),
   generated_at: z.string(),
   generator: z.object({ name: z.string(), version: z.string(), seed: z.number().nullable() }),
@@ -93,6 +93,7 @@ export type Cells = z.infer<typeof CellsSchema>;
 
 // 5.6
 const ContextPropsSchema = z.object({
+  id: z.string().min(1).optional(),
   kind: z.enum(['canal', 'river', 'dam', 'town']),
   name_en: z.string().nullable(),
   name_id: z.string().nullable(),
@@ -136,6 +137,17 @@ export const ContextSchema = z.object({
 export type Context = z.infer<typeof ContextSchema>;
 
 // 5.9
+export const CanalRankingSchema = z.object({
+  canal: z.string().min(1),
+  name_en: z.string(),
+  name_id: z.string(),
+  length_km: z.number(),
+  n_cells: z.number().int().positive(),
+  median_min_hh_db: z.number(),
+  n_burned_cells: z.number().int().nonnegative(),
+});
+export type CanalRanking = z.infer<typeof CanalRankingSchema>;
+
 export const ScorecardSchema = z.object({
   by_class: z.array(
     z.object({
@@ -153,6 +165,7 @@ export const ScorecardSchema = z.object({
       z.object({ cell: cellId, class: z.string(), min_hh_db: z.number(), date_of_min: isoDate }),
     ),
     dams_to_inspect: z.array(z.object({ cell: cellId, min_hh_db: z.number(), gap_vs_drained_median_db: z.number() })),
+    canals: z.array(CanalRankingSchema).max(20).optional(),
   }),
   tests: z.array(
     z.object({

@@ -13,7 +13,7 @@ interface Props {
   children: ReactNode;
 }
 
-const NAV_KEY = { reveal: 'nav.reveal', map: 'nav.map', scorecard: 'nav.scorecard', method: 'nav.method' } as const;
+const NAV_KEY = { reveal: 'nav.reveal', map: 'nav.map', scorecard: 'nav.scorecard', method: 'nav.method', world: 'nav.world' } as const;
 
 /** Header lives here, not per screen, so the simulated-data badge cannot be skipped by any screen. */
 export function AppShell({ lang, dataKind, screen, onNavigate, onLang, children }: Props) {

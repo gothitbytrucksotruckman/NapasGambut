@@ -16,6 +16,7 @@ export const CELLS = 'cells';
 export const CELLS_FILL = 'cells-fill';
 export const CELLS_HATCH = 'cells-hatch';
 export const CELLS_SELECTED = 'cells-selected';
+export const CANAL_SELECTED = 'canals-selected';
 const HATCH_IMG = 'nodata-hatch';
 
 // Keyless basemap: OpenStreetMap standard tiles. The OSM tile policy allows light use with attribution and a
@@ -43,6 +44,7 @@ export function buildStyle(b: Bundle, basemap: Basemap): StyleSpec {
       // fill-pattern is set in addHatchImage(), after the image exists.
       { id: CELLS_HATCH, type: 'fill', source: CELLS, filter: ['==', ['literal', 1], 0], paint: { 'fill-opacity': 1 } },
       { id: 'canals', type: 'line', source: 'context', filter: ['==', ['get', 'kind'], 'canal'], paint: { 'line-color': cssVar('--canal'), 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.6, 13, 1.6], 'line-opacity': 0.8 } },
+      { id: CANAL_SELECTED, type: 'line', source: 'context', filter: ['==', ['get', 'id'], ''], paint: { 'line-color': cssVar('--s-fire'), 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3, 13, 5], 'line-opacity': 1 } },
       { id: 'river', type: 'line', source: 'context', filter: ['==', ['get', 'kind'], 'river'], paint: { 'line-color': cssVar('--river'), 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 13, 6] } },
       { id: 'dams', type: 'circle', source: 'context', filter: ['==', ['get', 'kind'], 'dam'], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 13, 5], 'circle-color': cssVar('--paper-raised'), 'circle-stroke-color': cssVar('--ink'), 'circle-stroke-width': 1.5 } },
       { id: 'town', type: 'circle', source: 'context', filter: ['==', ['get', 'kind'], 'town'], paint: { 'circle-radius': 5, 'circle-color': cssVar('--ink'), 'circle-stroke-color': cssVar('--paper'), 'circle-stroke-width': 2 } },
@@ -96,6 +98,12 @@ export function setSelected(map: MLMap, id: string | null) {
   map.setFilter(CELLS_SELECTED, ['==', ['get', 'id'], id ?? '']);
 }
 
+export function setSelectedCanal(map: MLMap, id: string | null) {
+  if (map.getLayer(CANAL_SELECTED)) {
+    map.setFilter(CANAL_SELECTED, ['==', ['get', 'id'], id ?? '']);
+  }
+}
+
 /**
  * Re-read every colour token after a theme change. MapLibre holds resolved colours, not CSS variables,
  * so the paint properties are updated in place; the map, its sources and its feature-state stay as they are.
@@ -107,6 +115,7 @@ export function repaint(map: MLMap, cellFill: FillColor) {
   map.setPaintProperty('basemap', 'raster-opacity', dark ? 0.25 : 0.45);
   map.setPaintProperty(CELLS_FILL, 'fill-color', cellFill);
   map.setPaintProperty('canals', 'line-color', cssVar('--canal'));
+  if (map.getLayer(CANAL_SELECTED)) map.setPaintProperty(CANAL_SELECTED, 'line-color', cssVar('--s-fire'));
   map.setPaintProperty('river', 'line-color', cssVar('--river'));
   map.setPaintProperty('dams', 'circle-color', cssVar('--paper-raised'));
   map.setPaintProperty('dams', 'circle-stroke-color', cssVar('--ink'));

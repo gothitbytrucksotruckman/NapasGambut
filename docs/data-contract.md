@@ -45,7 +45,7 @@ State is checked in this order; the first matching rule wins (the generator appl
 
 ```ts
 interface Manifest {
-  schema_version: "0.1";
+  schema_version: "0.1" | "0.2";
   data_kind: "mock" | "nisar";
   generated_at: string;                 // ISO date-time
   generator: { name: string; version: string; seed: number | null };
@@ -102,6 +102,7 @@ A `FeatureCollection` of map context drawn above or below the cells.
 
 ```ts
 interface ContextFeatureProperties {
+  id?: string;                           // Contract 0.2 optional feature id (e.g. "osm:123456")
   kind: "canal" | "river" | "dam" | "town";
   name_en: string | null;
   name_id: string | null;
@@ -157,6 +158,15 @@ interface Scorecard {
     }[];
     dams_to_inspect: {                      // rewetted cells whose minimum fell below the drained median
       cell: string; min_hh_db: number; gap_vs_drained_median_db: number;
+    }[];
+    canals?: {                              // Contract 0.2 optional: top 20 canals sorted by lowest median_min_hh_db
+      canal: string;
+      name_en: string;
+      name_id: string;
+      length_km: number;
+      n_cells: number;
+      median_min_hh_db: number;
+      n_burned_cells: number;
     }[];
   };
   tests: {

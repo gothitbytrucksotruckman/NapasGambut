@@ -97,6 +97,14 @@ def spearman(a: list[float], b: list[float]) -> float:
 
 # ---------- inputs ----------
 
+def _load_canal_ranking():
+    path = Path(__file__).resolve().parent / "canal_ranking.py"
+    spec = importlib.util.spec_from_file_location("canal_ranking_mod", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _load_config():
     spec = importlib.util.spec_from_file_location("census_mod", Path(__file__).resolve().parent / "00_census.py")
     census = importlib.util.module_from_spec(spec)
@@ -460,12 +468,19 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
 
     scorecard = build_scorecard(props, hh, state, dates)
 
+    canal_mod = _load_canal_ranking()
+    raw_context = [f for f in inp["context_fc"]["features"] if f["properties"].get("kind") in ("canal", "river", "dam", "town")]
+    context_fc = {"type": "FeatureCollection", "features": canal_mod.assign_canal_ids(raw_context)}
+    ranked_canals = canal_mod.rank_canals(cells_fc, inp["stats"], inp["states"], context_fc)
+    if ranked_canals:
+        scorecard["rankings"]["canals"] = ranked_canals
+        manifest["schema_version"] = "0.2"
+    elif any(f["properties"].get("kind") == "canal" and f["properties"].get("id") for f in context_fc["features"]):
+        manifest["schema_version"] = "0.2"
+
     def enc(v) -> bytes:  # compact, and allow_nan=False makes a stray NaN an error instead of invalid JSON
         return json.dumps(v, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
-    context_fc = {"type": "FeatureCollection", "features": [
-        f for f in inp["context_fc"]["features"] if f["properties"].get("kind") in ("canal", "river", "dam", "town")
-    ]}
     files = {
         "manifest.json": enc(manifest),
         "cells.geojson": enc(cells_fc),
@@ -612,6 +627,8 @@ def run_self_test() -> int:
         assert "extra_field" not in json.loads(files["cells.geojson"])["features"][0]["properties"]
         assert [t["id"] for t in sc["tests"]] == ["canal_vs_drying", "rewetted_vs_drained", "drying_before_fire", "forest_flat"]
         assert sc["rankings"]["fastest_drying"][0] == {"cell": "r000c000", "class": "drained", "min_hh_db": -3.1, "date_of_min": "2026-08-21"}
+        assert m["schema_version"] == "0.2" and len(sc["rankings"].get("canals", [])) == 1, sc["rankings"]
+        assert sc["rankings"]["canals"][0]["n_cells"] == 2 and sc["rankings"]["canals"][0]["n_burned_cells"] == 1, sc["rankings"]["canals"][0]
 
         # Guards: synthetic inputs are named, and a NaN can never be written.
         bad = dict(inp, provenance={"canal_source": "synthetic_fallback"}, coherence_report={"proxy_used": True})

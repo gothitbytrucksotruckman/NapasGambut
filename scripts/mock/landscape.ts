@@ -177,4 +177,5 @@ export function buildLandscape(rng: Rng): Landscape {
   };
 }
 
+export const canalId = (i: number) => `osm:mock-c${String(i + 1).padStart(3, '0')}`;
 export const EXTENT_KM = { east: EAST_KM, south: SOUTH_KM };

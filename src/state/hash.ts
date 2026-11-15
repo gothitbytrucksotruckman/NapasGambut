@@ -1,5 +1,5 @@
 // URL hash <-> shareable view state (PRD 7.2). Unknown values fall back, never throw.
-export const SCREENS = ['reveal', 'map', 'scorecard', 'method'] as const;
+export const SCREENS = ['reveal', 'map', 'scorecard', 'method', 'world'] as const;
 export const LAYERS = ['state', 'hh', 'hv', 'coh', 'radar'] as const;
 export const LANGS = ['en', 'id'] as const;
 export type Screen = (typeof SCREENS)[number];

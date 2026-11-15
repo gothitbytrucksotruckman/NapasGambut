@@ -8,7 +8,7 @@ import {
   type Manifest,
 } from '../../src/contract';
 import { droppedPng, opticalHazePng, radarPng } from './images';
-import { BBOX, buildLandscape, GRID } from './landscape';
+import { BBOX, buildLandscape, canalId, GRID } from './landscape';
 import { mulberry32 } from './rng';
 import { buildScorecard } from './scorecard';
 import { DATES, DROPPED_DATE, DROPPED_INDEX, RAIN_RETURN_MM, simulateRain } from './season';
@@ -79,7 +79,7 @@ export function generateBundle(seed: number): Map<string, Buffer> {
   const imgFile = (d: string) => `images/radar_${d}.png`;
   const [w, s, e, n] = BBOX;
   const manifest: Manifest = {
-    schema_version: '0.1',
+    schema_version: '0.2',
     data_kind: 'mock',
     generated_at: `${DATES[T - 1]}T00:00:00Z`, // fixed, not wall clock, so output is byte-identical per seed
     generator: { name: 'napas-gambut-mock', version: GENERATOR_VERSION, seed },
@@ -155,11 +155,20 @@ export function generateBundle(seed: number): Map<string, Buffer> {
     }),
   };
 
-  const props = (kind: 'canal' | 'river' | 'dam' | 'town', name_en: string | null = null, name_id: string | null = null) => ({ kind, name_en, name_id });
+  const props = (
+    kind: 'canal' | 'river' | 'dam' | 'town',
+    name_en: string | null = null,
+    name_id: string | null = null,
+    id?: string,
+  ) => (id ? { id, kind, name_en, name_id } : { kind, name_en, name_id });
   const contextFeatures = {
     type: 'FeatureCollection' as const,
     features: [
-      ...land.canals.map((coordinates) => ({ type: 'Feature' as const, geometry: { type: 'LineString' as const, coordinates }, properties: props('canal') })),
+      ...land.canals.map((coordinates, idx) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'LineString' as const, coordinates },
+        properties: props('canal', `Canal #${idx + 1}`, `Kanal #${idx + 1}`, canalId(idx)),
+      })),
       { type: 'Feature' as const, geometry: { type: 'LineString' as const, coordinates: land.river }, properties: props('river', 'River (simulated)', 'Sungai (simulasi)') },
       ...land.dams.map((coordinates) => ({ type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates }, properties: props('dam') })),
       { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: land.town }, properties: props('town', 'Town (simulated)', 'Kota (simulasi)') },

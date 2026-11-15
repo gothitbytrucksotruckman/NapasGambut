@@ -5,6 +5,7 @@ import { t } from './i18n';
 import { Method } from './screens/Method';
 import { Reveal, RevealSkeleton } from './screens/Reveal';
 import { Scorecard } from './screens/Scorecard';
+import { World } from './screens/World';
 import './screens/SeasonMap.css';
 import { parseHash } from './state/hash';
 import { AppProvider, type LoadResult, loadFromEnv, useApp } from './state/store';
@@ -55,6 +56,8 @@ function Screens() {
         <Scorecard />
       ) : state.screen === 'method' ? (
         <Method />
+      ) : state.screen === 'world' ? (
+        <World />
       ) : (
         <Reveal />
       )}
