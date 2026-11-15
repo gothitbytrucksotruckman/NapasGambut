@@ -21,6 +21,10 @@ export type StateCode = (typeof STATE)[StateKey];
 export const CLASS_IDS = ['drained', 'rewetted', 'plantation', 'intact_forest', 'reference_forest', 'settlement'] as const;
 export type ClassId = (typeof CLASS_IDS)[number];
 
+// Schema 0.2: land cover as the radar land model sees it (coarser than CLASS_IDS).
+export const COVER_IDS = ['forest', 'degraded', 'plantation', 'built'] as const;
+export type CoverId = (typeof COVER_IDS)[number];
+
 export const BUNDLE_FILES = {
   manifest: 'manifest.json',
   cells: 'cells.geojson',
@@ -32,7 +36,7 @@ export const BUNDLE_FILES = {
 
 // 5.4
 export const ManifestSchema = z.object({
-  schema_version: z.literal('0.1'),
+  schema_version: z.enum(['0.1', '0.2']),
   data_kind: z.enum(['mock', 'nisar']),
   generated_at: z.string(),
   generator: z.object({ name: z.string(), version: z.string(), seed: z.number().nullable() }),
@@ -65,6 +69,16 @@ export const ManifestSchema = z.object({
     reveal: z.object({ date: isoDate, optical_file: z.string(), radar_file: z.string() }),
   }),
   sources: z.array(z.object({ name: z.string(), url: z.string(), role_en: z.string(), role_id: z.string() })),
+  // 0.2. used = cells.class came from the radar land model; simulated = mock bundle, no model trained.
+  land_model: z
+    .object({
+      status: z.enum(['used', 'not_used', 'simulated']),
+      version: z.string(),
+      confidence_level: z.number(),
+      reason_en: z.string().nullable(),
+      reason_id: z.string().nullable(),
+    })
+    .optional(),
 });
 export type Manifest = z.infer<typeof ManifestSchema>;
 
@@ -78,6 +92,10 @@ export const CellPropertiesSchema = z.object({
   tree_cover_pct: z.number().min(0).max(100),
   n_pixels: z.number().int(),
   centroid: lonLat,
+  // 0.2. The radar's conformal class set at manifest.land_model.confidence_level; [] = the radar can't tell.
+  cover_set: z.array(z.enum(COVER_IDS)).optional(),
+  // 0.2. Only on flagged cells: what the older map says where the radar confidently disagrees (the radar's class is cover_set[0]).
+  map_check: z.enum(COVER_IDS).optional(),
 });
 export type CellProperties = z.infer<typeof CellPropertiesSchema>;
 
@@ -136,6 +154,23 @@ export const ContextSchema = z.object({
 export type Context = z.infer<typeof ContextSchema>;
 
 // 5.9
+// 0.2: a hindcast of one season at one site; quintile 1 = lowest HV index.
+const FireRiskSchema = z.object({
+  status: z.enum(['passed', 'not_passed', 'not_run']),
+  test_dates: z.array(isoDate),
+  model_pr_auc: z.number().nullable(),
+  model_pr_auc_ci: z.tuple([z.number(), z.number()]).nullable(),
+  best_baseline: z.object({ id: z.enum(['B1', 'B2', 'B3']), pr_auc: z.number() }).nullable(),
+  lift: z.array(
+    z.object({
+      quintile: z.number().int().min(1).max(5),
+      n: z.number().int(),
+      fires: z.number().int(),
+      rate: z.number().min(0).max(1),
+    }),
+  ),
+});
+
 export const ScorecardSchema = z.object({
   by_class: z.array(
     z.object({
@@ -154,6 +189,8 @@ export const ScorecardSchema = z.object({
     ),
     dams_to_inspect: z.array(z.object({ cell: cellId, min_hh_db: z.number(), gap_vs_drained_median_db: z.number() })),
   }),
+  // 0.2 adds ids: fire_risk_capture (only when fire_risk.status is passed),
+  // land_model_coverage and map_out_of_date (only when manifest.land_model.status is used).
   tests: z.array(
     z.object({
       id: z.string(),
@@ -166,5 +203,6 @@ export const ScorecardSchema = z.object({
       note_id: z.string(),
     }),
   ),
+  fire_risk: FireRiskSchema.optional(),
 });
 export type Scorecard = z.infer<typeof ScorecardSchema>;

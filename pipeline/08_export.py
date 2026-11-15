@@ -60,6 +60,7 @@ CLASS_LABELS = [
     ("settlement", "Settlement", "Permukiman"),
 ]
 NO_DATA, FIRE_RADAR, FIRE_SILENT, REWETTING = 1, 2, 3, 5
+LANDCLASS_VERSION = "nisar_landclass_v1"  # 04c_landclass.py VERSION
 
 NOTE_EN = "Descriptive only. Neighbouring cells are not independent, so read this as a pattern, not proof."
 NOTE_ID = "Hanya deskriptif. Sel yang bertetangga tidak saling bebas, jadi baca ini sebagai pola, bukan bukti."  # REVIEW
@@ -104,18 +105,40 @@ def _load_config():
     return census.load_config(PROJECT_ROOT / "config.yaml")
 
 
-def _json(path: Path, default=None):
+def _json(path: Path, default=None, stage: str = "the stage that writes it"):
     if not path.exists():
         if default is not None:
             return default
-        raise FileNotFoundError(f"{path} is missing; run the stage that writes it first")
+        raise FileNotFoundError(f"{path} is missing; run {stage} first")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _landclass_csv(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(f"{path} is missing; run 04c_landclass.py first")
+    return pd.read_csv(path, dtype={"cell_id": str, "cover_set": str, "label_map": str, "class_model": str})
+
+
+def _cube_attrs(cube: Path) -> dict:
+    """Root attrs of the radar cube: zarr v2 (.zattrs or consolidated .zmetadata) or v3 (zarr.json)."""
+    if (cube / ".zattrs").exists():
+        return _json(cube / ".zattrs")
+    if (cube / ".zmetadata").exists():
+        return _json(cube / ".zmetadata")["metadata"].get(".zattrs", {})
+    if (cube / "zarr.json").exists():
+        return _json(cube / "zarr.json").get("attributes", {})
+    raise FileNotFoundError(f"{cube} has no zarr metadata; run 01_fetch.py first")
 
 
 def load_inputs() -> dict:
     """Everything the export reads, from the paths stages 0 to 7 write."""
+    cfg = _load_config()
     return {
-        "config": _load_config(),
+        "config": cfg,
+        "cube_attrs": _cube_attrs(PROJECT_ROOT / cfg.get("merged_cube_zarr", "data/gcov_cube.zarr")),
+        "landclass_report": _json(DATA_DIR / "landclass_report.json", stage="04c_landclass.py"),
+        "landclass": _landclass_csv(DATA_DIR / "landclass.csv"),
+        "fire_report": _json(DATA_DIR / "fire_risk_report.json", stage="07b_fire_risk.py"),
         "quality": _json(DATA_DIR / "quality_report.json"),
         "scenes": _json(DATA_DIR / "selected_scenes.json"),
         "noise": _json(DATA_DIR / "noise_floor.json"),
@@ -137,6 +160,15 @@ def provenance_problems(inp: dict) -> list[str]:
     """Inputs that are stand-ins, not observations or cited datasets (design doc principle 7)."""
     p = inp["provenance"]
     problems = []
+    if inp["cube_attrs"].get("data_source") != "asf_live_stream":
+        problems.append("the radar cube is not marked as streamed from ASF (dry-run or unknown origin); re-run 01_fetch.py live")
+    lr = inp["landclass_report"]
+    if p.get("class_source") == LANDCLASS_VERSION and (lr.get("status") != "used" or lr.get("version") != LANDCLASS_VERSION):
+        problems.append(f"cell classes are marked as {LANDCLASS_VERSION}, but landclass_report.json says status "
+                        f"'{lr.get('status')}', version '{lr.get('version')}' (re-run 04c_landclass.py)")
+    if lr.get("status") == "used" and p.get("class_source") != LANDCLASS_VERSION:
+        problems.append(f"landclass_report.json says the model is used, but grid_provenance.json class_source is "
+                        f"'{p.get('class_source')}' (re-run 04c_landclass.py)")
     if p.get("canal_source") != "osm_overpass":
         problems.append(f"canals are '{p.get('canal_source', 'unknown')}', not OpenStreetMap (re-run 03_grid.py online)")
     if p.get("class_source", "heuristic_rules") == "heuristic_rules":
@@ -332,6 +364,36 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
     props = [f["properties"] for f in cells_fc["features"]]
     cell_ids = [p["id"] for p in props]
 
+    # Land model (04c): when it passed its gates, its classes replace the map's, before the scorecard is computed.
+    lr = inp["landclass_report"]
+    if lr["status"] not in ("used", "not_used"):
+        raise ValueError(f"landclass_report.json status '{lr['status']}' is not used/not_used; re-run 04c_landclass.py")
+    land_used = lr["status"] == "used"
+    if land_used:
+        lc = inp["landclass"].set_index("cell_id")
+        if not lc.index.is_unique:
+            raise ValueError("landclass.csv repeats a cell_id; re-run 04c_landclass.py")
+        missing = [c for c in cell_ids if c not in lc.index]
+        if missing:
+            raise ValueError(f"landclass.csv has no row for {len(missing)} cells (e.g. {missing[0]}); re-run 04c_landclass.py")
+        for p in props:
+            r = lc.loc[p["id"]]
+            p["class"] = str(r["class_model"])
+            cs = r["cover_set"]
+            p["cover_set"] = cs.split("|") if isinstance(cs, str) and cs else []  # "" is read back as NaN
+            if int(r["map_check"]) == 1:
+                if len(p["cover_set"]) != 1:
+                    raise ValueError(f"{p['id']} is flagged map_check without a one-class radar set")
+                p["map_check"] = str(r["label_map"])
+    reasons = "; ".join(lr.get("reasons", []))
+    land_model = {
+        "status": lr["status"],
+        "version": lr["version"],
+        "confidence_level": lr["confidence_level"],
+        "reason_en": None if land_used else f"The radar land model did not pass its checks, so the classes come from the maps: {reasons}",
+        "reason_id": None if land_used else f"Model lahan radar tidak lolos pemeriksaannya, jadi kelas berasal dari peta: {reasons}",  # REVIEW
+    }
+
     # Series. Values exist only on passes with radar data; everything else is null.
     hh = _pivot(inp["stats"], "hh_tenths", cell_ids, dates)
     hv = _pivot(inp["stats"], "hv_tenths", cell_ids, dates)
@@ -421,7 +483,7 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
 
     bbox = [float(v) for v in cfg["study_box"]]
     manifest = {
-        "schema_version": "0.1",
+        "schema_version": "0.2",
         "data_kind": data_kind,
         "generated_at": generated_at,
         "generator": {"name": "napas-gambut-pipeline", "version": "0.1.0", "seed": None},
@@ -449,6 +511,7 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
             "rain_return_mm": float(cfg["rain_return_mm"]),
         },
         "classes": [{"id": i, "label_en": e, "label_id": l} for i, e, l in CLASS_LABELS],
+        "land_model": land_model,
         "states": [{"code": c, "key": k, "label_en": e, "label_id": l} for c, k, e, l in STATE_LABELS],
         "images": {
             "bounds": quality["image_bounds"],
@@ -459,6 +522,59 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
     }
 
     scorecard = build_scorecard(props, hh, state, dates)
+    tests = scorecard["tests"]
+    if land_used:
+        m = lr["metrics"]
+        tests.append({
+            "id": "land_model_coverage",
+            "name_en": "Radar land classes agree with the maps",
+            "name_id": "Kelas lahan radar sesuai dengan peta",  # REVIEW
+            "statistic": "Share of held-out cells whose map class is inside the radar's class set (target 90%)",
+            "value": m["check_coverage"]["value"],
+            "n": m["check_coverage"]["n"],
+            "note_en": "Checked on held-out 5 km blocks against the 2021 maps, not against the ground.",
+            "note_id": "Diperiksa pada blok 5 km yang disisihkan terhadap peta 2021, bukan terhadap kondisi lapangan.",  # REVIEW
+        })
+        tests.append({
+            "id": "map_out_of_date",
+            "name_en": "Radar disagrees with the older map",
+            "name_id": "Radar tidak sesuai dengan peta lama",  # REVIEW
+            "statistic": "Share of cells where the radar confidently disagrees with the 2021 maps",
+            "value": round_half_up(m["n_map_check"] / m["n_cells"], 3),
+            "n": m["n_cells"],
+            "note_en": "Worth checking on the ground; many are mixed cells, not real change.",
+            "note_id": "Layak diperiksa di lapangan; banyak di antaranya sel campuran, bukan perubahan nyata.",  # REVIEW
+        })
+
+    # Fire-risk hindcast (07b), copied from its report. It is a ranking test, never a forecast.
+    fr = inp["fire_report"]
+    if fr["status"] not in ("passed", "not_passed", "not_run"):
+        raise ValueError(f"fire_risk_report.json status '{fr['status']}' is unknown; re-run 07b_fire_risk.py")
+    model = fr.get("model") or {}
+    ci = model.get("pr_auc_ci")
+    bb = fr.get("best_baseline")
+    scorecard["fire_risk"] = {
+        "status": fr["status"],
+        "test_dates": fr["test_dates"],
+        "model_pr_auc": model.get("pr_auc"),
+        "model_pr_auc_ci": ci if ci and None not in ci else None,
+        "best_baseline": {"id": bb["id"], "pr_auc": bb["pr_auc"]} if bb else None,
+        "lift": [{"quintile": q["quintile"], "n": q["n"], "fires": q["fires"], "rate": round_half_up(q["rate"], 3)}
+                 for q in fr.get("lift", [])],
+    }
+    if fr["status"] == "passed":
+        bid = bb["id"]
+        tests.append({
+            "id": "fire_risk_capture",
+            "name_en": "Fire-risk hindcast ranks burned cells higher",
+            "name_id": "Hindcast risiko kebakaran menempatkan sel yang terbakar lebih tinggi",  # REVIEW
+            "statistic": "Share of next-interval fires in the top 10% of cells, ranked within each pass "
+                         f"(best simple rule {bid}: {round_half_up(fr['baselines'][bid]['top10_capture'], 3)})",
+            "value": model["top10_capture"],
+            "n": fr["n_test_fires"],
+            "note_en": "Hindcast of the 2026 season at one site, not a forecast.",
+            "note_id": "Hindcast musim 2026 di satu lokasi, bukan prakiraan.",  # REVIEW
+        })
 
     def enc(v) -> bytes:  # compact, and allow_nan=False makes a stray NaN an error instead of invalid JSON
         return json.dumps(v, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
@@ -566,7 +682,22 @@ def _fake_inputs(tmp: Path) -> dict:
     hh = {"r000c000": [0, -12, None, -25, -31], "r000c001": [0, -4, None, -8, -9], "r000c002": [0, -1, None, -2, -1]}
     stats_rows = [(cid, d, v[t], v[t] and v[t] // 3) for cid, v in hh.items() for t, d in enumerate(dates) if d in kept]
     st = {"r000c000": [8, 7, 1, 3, 4], "r000c001": [8, 8, 1, 7, 7], "r000c002": [8, 8, 1, 8, 8]}
+    # Land model: the radar can't tell cell 1 (""), and confidently calls the map's forest cell 2 plantation.
+    pd.DataFrame({
+        "cell_id": list(hh), "label_map": ["degraded", "degraded", "forest"], "cover_set": ["degraded", "", "plantation"],
+        "set_size": [1, 0, 1], "map_check": [0, 0, 1], "class_map": cls, "class_model": ["drained", "rewetted", "plantation"],
+    }).to_csv(tmp / "landclass.csv", index=False)
+    lift = [{"quintile": 1, "n": 2, "fires": 1, "rate": 0.5}, {"quintile": 2, "n": 3, "fires": 1, "rate": 0.3333}]
     return {
+        "cube_attrs": {"epsg": 32749, "data_source": "asf_live_stream"},
+        "landclass_report": {"version": LANDCLASS_VERSION, "status": "used", "reasons": [], "confidence_level": 0.9,
+                             "metrics": {"check_coverage": {"value": 0.9123, "n": 2}, "n_map_check": 1, "n_cells": 3}},
+        "landclass": _landclass_csv(tmp / "landclass.csv"),
+        "fire_report": {"status": "passed", "test_dates": ["2026-08-09", "2026-08-21"], "n_test_fires": 5,
+                        "model": {"pr_auc": 0.31, "pr_auc_ci": [0.2, 0.42], "top10_capture": 0.4, "brier": 0.1},
+                        "baselines": {k: {"pr_auc": v, "pr_auc_ci": [0.05, 0.2], "top10_capture": c}
+                                      for k, v, c in (("B1", 0.05, 0.1), ("B2", 0.12, 0.2), ("B3", 0.15, 0.3))},
+                        "best_baseline": {"id": "B3", "pr_auc": 0.15}, "lift": lift},
         "config": {"study_box": [114.0, -2.01, 114.02, -2.0], "cell_size_m": 500, "rain_return_mm": 50},
         "quality": {"kept_dates": kept, "dropped_dates": [],
                     "image_bounds": [[114.0, -2.0], [114.02, -2.0], [114.02, -2.01], [114.0, -2.01]],
@@ -578,7 +709,7 @@ def _fake_inputs(tmp: Path) -> dict:
         "context": {"dates": dates, "rain_3day_mm": [1.0, 0.0, None, 3.0, 2.0], "rain_interval_mm": [10.0, 4.0, 0.0, 60.0],
                     "fires_region": [0, 0, 2, 5], "rain_source": "test rain", "fire_source": "test fires"},
         "coherence_report": {"proxy_used": False, "per_interval": []},
-        "provenance": {"canal_source": "osm_overpass", "class_source": "test_land_cover", "tree_cover_source": "test"},
+        "provenance": {"canal_source": "osm_overpass", "class_source": LANDCLASS_VERSION, "tree_cover_source": "test"},
         "visuals": {"reveal_date": "2026-08-21", "optical_file": "images/smoke_reveal.png", "source": "VIIRS test"},
         "cells_fc": {"type": "FeatureCollection", "features": feats},
         "context_fc": {"type": "FeatureCollection", "features": [
@@ -601,21 +732,64 @@ def run_self_test() -> int:
         inp = _fake_inputs(tmp / "in")
         assert provenance_problems(inp) == []
         files = build_bundle(inp, "nisar", "2026-11-14T00:00:00Z")
+        assert all(b"NaN" not in b for k, b in files.items() if not k.endswith(".png"))
         m = json.loads(files["manifest.json"])
         s = json.loads(files["series.json"])
         sc = json.loads(files["scorecard.json"])
+        cp = [f["properties"] for f in json.loads(files["cells.geojson"])["features"]]
+        assert m["schema_version"] == "0.2"
         assert m["dates"][2] == "2026-07-28" and m["dropped_dates"][0]["date"] == "2026-07-28", m["dropped_dates"]
         assert "NISAR instrument data gap" in m["dropped_dates"][0]["reason_en"]
         assert m["thresholds"]["sigma_db"] == [None, 0.12, None, 0.11, 0.12]
         assert [r["date"] for r in m["images"]["radar"]] == ["2026-07-04", "2026-07-16", "2026-08-09", "2026-08-21"]
         assert s["hh"][0] == [0, -12, None, -25, -31] and s["coh"][0] == [55, None, None, 12], s["coh"][0]
-        assert "extra_field" not in json.loads(files["cells.geojson"])["features"][0]["properties"]
-        assert [t["id"] for t in sc["tests"]] == ["canal_vs_drying", "rewetted_vs_drained", "drying_before_fire", "forest_flat"]
-        assert sc["rankings"]["fastest_drying"][0] == {"cell": "r000c000", "class": "drained", "min_hh_db": -3.1, "date_of_min": "2026-08-21"}
+        assert "extra_field" not in cp[0]
+
+        # Land model used: model classes, parsed sets, map_check only on the flagged cell, and the scorecard follows them.
+        assert [p["class"] for p in cp] == ["drained", "rewetted", "plantation"]
+        assert [p["cover_set"] for p in cp] == [["degraded"], [], ["plantation"]]
+        assert [p.get("map_check") for p in cp] == [None, None, "forest"]
+        assert m["land_model"] == {"status": "used", "version": LANDCLASS_VERSION, "confidence_level": 0.9,
+                                   "reason_en": None, "reason_id": None}, m["land_model"]
+        assert [t["id"] for t in sc["tests"]] == ["canal_vs_drying", "rewetted_vs_drained", "drying_before_fire",
+                                                  "land_model_coverage", "map_out_of_date", "fire_risk_capture"]
+        t = {t["id"]: t for t in sc["tests"]}
+        assert (t["land_model_coverage"]["value"], t["land_model_coverage"]["n"]) == (0.9123, 2)
+        assert (t["map_out_of_date"]["value"], t["map_out_of_date"]["n"]) == (0.333, 3)
+        assert t["fire_risk_capture"]["value"] == 0.4 and t["fire_risk_capture"]["n"] == 5
+        assert "best simple rule B3: 0.3" in t["fire_risk_capture"]["statistic"]
+        assert sc["fire_risk"] == {"status": "passed", "test_dates": ["2026-08-09", "2026-08-21"], "model_pr_auc": 0.31,
+                                   "model_pr_auc_ci": [0.2, 0.42], "best_baseline": {"id": "B3", "pr_auc": 0.15},
+                                   "lift": [{"quintile": 1, "n": 2, "fires": 1, "rate": 0.5},
+                                            {"quintile": 2, "n": 3, "fires": 1, "rate": 0.333}]}, sc["fire_risk"]
+        words = json.dumps([m, sc]).lower()
+        assert "probability" not in words and "predicts fire" not in words
+        assert words.count("forecast") == words.count("not a forecast"), "forecast only in its negation"
+
+        # Land model not used: the maps' classes, no sets; the four original tests; fire not_passed / not_run.
+        lr_bad = dict(inp["landclass_report"], status="not_used", reasons=["check coverage 0.8 is below 0.87 (n=2 check cells)"])
+        for fr in (dict(inp["fire_report"], status="not_passed"),
+                   dict(inp["fire_report"], status="not_run", model=None, baselines=None, best_baseline=None)):
+            f2 = build_bundle(dict(inp, landclass_report=lr_bad, fire_report=fr), "nisar", "2026-11-14T00:00:00Z")
+            m2, sc2 = json.loads(f2["manifest.json"]), json.loads(f2["scorecard.json"])
+            cp2 = [f["properties"] for f in json.loads(f2["cells.geojson"])["features"]]
+            assert [p["class"] for p in cp2] == ["drained", "rewetted", "intact_forest"]
+            assert not any("cover_set" in p or "map_check" in p for p in cp2)
+            assert m2["land_model"]["status"] == "not_used" and "check coverage 0.8 is below 0.87" in m2["land_model"]["reason_en"]
+            assert "check coverage 0.8 is below 0.87" in m2["land_model"]["reason_id"]
+            assert [t["id"] for t in sc2["tests"]] == ["canal_vs_drying", "rewetted_vs_drained", "drying_before_fire", "forest_flat"]
+            assert sc2["rankings"]["fastest_drying"][0] == {"cell": "r000c000", "class": "drained", "min_hh_db": -3.1, "date_of_min": "2026-08-21"}
+            assert sc2["fire_risk"]["status"] == fr["status"] and len(sc2["fire_risk"]["lift"]) == 2
+        assert sc2["fire_risk"]["model_pr_auc"] is None and sc2["fire_risk"]["best_baseline"] is None
 
         # Guards: synthetic inputs are named, and a NaN can never be written.
-        bad = dict(inp, provenance={"canal_source": "synthetic_fallback"}, coherence_report={"proxy_used": True})
-        assert len(provenance_problems(bad)) == 4, provenance_problems(bad)
+        bad = dict(inp, provenance={"canal_source": "synthetic_fallback"}, coherence_report={"proxy_used": True}, cube_attrs={})
+        assert len(provenance_problems(bad)) == 6, provenance_problems(bad)
+        assert any("not marked as streamed from ASF" in p for p in provenance_problems(bad))
+        model_not_used = dict(inp, landclass_report=lr_bad)
+        assert len(provenance_problems(model_not_used)) == 1 and LANDCLASS_VERSION in provenance_problems(model_not_used)[0]
+        map_source = dict(inp, provenance=dict(inp["provenance"], class_source="esa_worldcover_2021_v200_and_gfw_peat_concessions"))
+        assert len(provenance_problems(map_source)) == 1 and "says the model is used" in provenance_problems(map_source)[0]
         try:
             build_scorecard([{"id": "r000c000", "class": "intact_forest", "canal_density_km_per_km2": 0}], [[0, -1]], [[8, 8]], ["a", "b"])
             raise AssertionError("scorecard without drained cells must fail")
@@ -625,7 +799,7 @@ def run_self_test() -> int:
         out = tmp / "out"
         write_bundle(files, out)
         check_with_app_loader(out)
-    print("08_export self-test: passed (calendar gap, nulls, scorecard, guards, app loader)")
+    print("08_export self-test: passed (calendar gap, nulls, scorecard, land model, fire risk, guards, app loader)")
     return 0
 
 

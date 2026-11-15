@@ -181,3 +181,85 @@ interface Scorecard {
 ## 5.11 Size budget
 
 Everything except images: under 6 MB. Images: under 10 MB in total.
+
+## Schema 0.2 (additive)
+
+`schema_version` may be `"0.1"` or `"0.2"`. Every field below is optional, so a 0.1 bundle is still a valid 0.2 bundle. The mock generator writes `"0.2"`.
+
+### Land cover ids
+
+```ts
+type CoverId = "forest" | "degraded" | "plantation" | "built";
+```
+
+These are the classes the radar land model predicts. They are coarser than the cell classes in 5.3.
+
+### `manifest.json`
+
+```ts
+interface Manifest {
+  // ...all 0.1 fields...
+  land_model?: {
+    status: "used" | "not_used" | "simulated";
+    version: string;
+    confidence_level: number;            // e.g. 0.9; the level the class sets are built at
+    reason_en: string | null;
+    reason_id: string | null;
+  };
+}
+```
+
+- `used`: `cells.class` came from the radar land model.
+- `not_used`: `cells.class` did not come from the land model; `reason_en` and `reason_id` say why.
+- `simulated`: a mock bundle. No model was trained; the class sets are made up by the script.
+
+### `cells.geojson`
+
+```ts
+interface CellProperties {
+  // ...all 0.1 fields...
+  cover_set?: CoverId[];   // the radar's conformal class set at land_model.confidence_level
+  map_check?: CoverId;     // only on flagged cells
+}
+```
+
+- `cover_set` lists every class the radar cannot rule out at the stated confidence level. The first entry is the radar's class. An empty array means the radar can't tell.
+- `map_check` is present only where the radar confidently disagrees with the older land cover map. It holds what the older map says. The radar's class is `cover_set[0]`.
+
+### `scorecard.json`
+
+```ts
+interface Scorecard {
+  // ...all 0.1 fields...
+  fire_risk?: {
+    status: "passed" | "not_passed" | "not_run";
+    test_dates: string[];                     // pass dates held out for the test
+    model_pr_auc: number | null;
+    model_pr_auc_ci: [number, number] | null;
+    best_baseline: { id: "B1" | "B2" | "B3"; pr_auc: number } | null;
+    lift: {
+      quintile: number;                       // 1 to 5; 1 = lowest HV index
+      n: number;                              // test rows in the quintile
+      fires: number;                          // rows with a fire in the next interval
+      rate: number;                           // fires / n, 0 to 1
+    }[];
+  };
+}
+```
+
+`fire_risk` is a hindcast of one season at one site. It says whether a low HV index came before fire in that season. It is not a forecast.
+
+`tests` keeps its 0.1 shape. Three new ids may appear:
+
+- `fire_risk_capture`, only when `fire_risk.status` is `passed`.
+- `land_model_coverage` and `map_out_of_date`, only when `land_model.status` is `used`.
+
+### Rules the loader checks
+
+- A `fire_risk_capture` test is present exactly when `fire_risk.status` is `passed`.
+- If any cell has `cover_set` or `map_check`, `land_model.status` must be `used` or `simulated`.
+- A cell with `map_check` has a `cover_set` of exactly one class.
+
+### What the mock writes
+
+`land_model.status` is `simulated`. Every cell gets a `cover_set`: about 3% empty, about 8% with two classes, the rest with one. About 2% of the one-class cells get a `map_check`. `fire_risk.status` is `not_run`, with no model scores; `test_dates` and `lift` are computed from the simulated series with the same row rule as `pipeline/07b_fire_risk.py`. The mock writes none of the three new tests.

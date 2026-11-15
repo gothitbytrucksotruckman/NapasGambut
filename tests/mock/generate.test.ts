@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
 import { DEFAULT_SEED, generateBundle, sha256 } from '../../scripts/mock/generate';
-import { ManifestSchema, ScorecardSchema, SeriesSchema, STATE } from '../../src/contract';
+import { CellsSchema, ManifestSchema, ScorecardSchema, SeriesSchema, STATE } from '../../src/contract';
 
 const a = generateBundle(DEFAULT_SEED);
 const json = (name: string) => JSON.parse(a.get(name)!.toString());
@@ -37,6 +37,42 @@ describe('generator', () => {
     for (const t of sc.tests) expect(t.note_en).toMatch(/descriptive/i);
     expect(sc.rankings.fastest_drying.length).toBe(20);
     expect(sc.rankings.dams_to_inspect.length).toBeGreaterThan(0);
+  });
+
+  it('labels the 0.2 land model fields as simulated and gives every cell a cover set', () => {
+    const m = ManifestSchema.parse(json('manifest.json'));
+    expect(m.schema_version).toBe('0.2');
+    expect(m.land_model?.status).toBe('simulated');
+    const props = CellsSchema.parse(json('cells.geojson')).features.map((f) => f.properties);
+    expect(props.every((p) => Array.isArray(p.cover_set))).toBe(true);
+    const share = (k: number) => k / props.length;
+    expect(share(props.filter((p) => p.cover_set!.length === 0).length)).toBeGreaterThan(0.015);
+    expect(share(props.filter((p) => p.cover_set!.length === 0).length)).toBeLessThan(0.045);
+    expect(share(props.filter((p) => p.cover_set!.length === 2).length)).toBeGreaterThan(0.06);
+    expect(share(props.filter((p) => p.cover_set!.length === 2).length)).toBeLessThan(0.1);
+    const flagged = props.filter((p) => p.map_check);
+    expect(flagged.every((p) => p.cover_set!.length === 1 && p.map_check !== p.cover_set![0])).toBe(true);
+    const singles = props.filter((p) => p.cover_set!.length === 1).length;
+    expect(flagged.length / singles).toBeGreaterThan(0.01);
+    expect(flagged.length / singles).toBeLessThan(0.03);
+  });
+
+  it('writes a not_run fire_risk block and none of the model tests', () => {
+    const sc = ScorecardSchema.parse(json('scorecard.json'));
+    const fr = sc.fire_risk!;
+    expect([fr.status, fr.model_pr_auc, fr.model_pr_auc_ci, fr.best_baseline]).toEqual(['not_run', null, null, null]);
+    expect(fr.test_dates).toHaveLength(2);
+    expect(fr.lift.map((q) => q.quintile)).toEqual([1, 2, 3, 4, 5]);
+    // Test rows: cells unburned before the pass with HV there and at the previous pass (no dropped date precedes the test passes).
+    const s = SeriesSchema.parse(json('series.json'));
+    const firstFire = s.fires.map((r) => { const k = r.findIndex((v) => (v ?? 0) > 0); return k < 0 ? 99 : k; });
+    const rows = fr.test_dates.reduce((sum, d) => {
+      const b = s.dates.indexOf(d);
+      return sum + s.hv.filter((h, j) => firstFire[j] >= b && h[b] !== null && h[b - 1] !== null).length;
+    }, 0);
+    expect(fr.lift.reduce((a, q) => a + q.n, 0)).toBe(rows);
+    const ids = sc.tests.map((t) => t.id);
+    for (const id of ['fire_risk_capture', 'land_model_coverage', 'map_out_of_date']) expect(ids).not.toContain(id);
   });
 
   it('writes 640x640 images for every date plus the reveal pair', () => {

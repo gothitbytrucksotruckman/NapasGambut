@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CellsSchema, ManifestSchema, SeriesSchema, STATE } from '../src/contract';
+import { CellsSchema, ManifestSchema, ScorecardSchema, SeriesSchema, STATE } from '../src/contract';
 
 export const minimalManifest = {
   schema_version: '0.1',
@@ -22,13 +22,45 @@ export const minimalManifest = {
   sources: [],
 };
 
+const minimalScorecard = { by_class: [], rankings: { fastest_drying: [], dams_to_inspect: [] }, tests: [] };
+const cellsWith = (extra: object) => ({
+  type: 'FeatureCollection',
+  features: [{
+    type: 'Feature',
+    geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] },
+    properties: { id: 'r000c000', row: 0, col: 0, class: 'drained', canal_density_km_per_km2: 0, tree_cover_pct: 0, n_pixels: 625, centroid: [0, 0], ...extra },
+  }],
+});
+
 describe('contract schemas', () => {
   it('accepts a minimal valid manifest', () => {
     expect(ManifestSchema.safeParse(minimalManifest).success).toBe(true);
   });
 
-  it('rejects an unknown schema_version', () => {
-    expect(ManifestSchema.safeParse({ ...minimalManifest, schema_version: '0.2' }).success).toBe(false);
+  it('accepts schema_version 0.2 and rejects an unknown one', () => {
+    expect(ManifestSchema.safeParse({ ...minimalManifest, schema_version: '0.2' }).success).toBe(true);
+    expect(ManifestSchema.safeParse({ ...minimalManifest, schema_version: '0.3' }).success).toBe(false);
+  });
+
+  it('keeps 0.1 files without the 0.2 fields valid', () => {
+    expect(ManifestSchema.safeParse(minimalManifest).success).toBe(true);
+    expect(CellsSchema.safeParse(cellsWith({})).success).toBe(true);
+    expect(ScorecardSchema.safeParse(minimalScorecard).success).toBe(true);
+  });
+
+  it('accepts the 0.2 fields and rejects a bad cover id or fire_risk status', () => {
+    const land_model = { status: 'used', version: '1', confidence_level: 0.9, reason_en: null, reason_id: null };
+    expect(ManifestSchema.safeParse({ ...minimalManifest, schema_version: '0.2', land_model }).success).toBe(true);
+    expect(CellsSchema.safeParse(cellsWith({ cover_set: ['forest'], map_check: 'degraded' })).success).toBe(true);
+    expect(CellsSchema.safeParse(cellsWith({ cover_set: [] })).success).toBe(true);
+    expect(CellsSchema.safeParse(cellsWith({ cover_set: ['swamp'] })).success).toBe(false);
+    expect(CellsSchema.safeParse(cellsWith({ map_check: 'water' })).success).toBe(false);
+    const fire_risk = {
+      status: 'not_run', test_dates: ['2026-10-06'], model_pr_auc: null, model_pr_auc_ci: null, best_baseline: null,
+      lift: [{ quintile: 1, n: 3, fires: 1, rate: 0.333 }],
+    };
+    expect(ScorecardSchema.safeParse({ ...minimalScorecard, fire_risk }).success).toBe(true);
+    expect(ScorecardSchema.safeParse({ ...minimalScorecard, fire_risk: { ...fire_risk, status: 'maybe' } }).success).toBe(false);
   });
 
   it('rejects NaN in series values', () => {

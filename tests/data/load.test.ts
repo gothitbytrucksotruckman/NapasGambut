@@ -45,6 +45,39 @@ describe('loadBundle', () => {
     expect((await errorOf(loadBundle(BASE, fakeFetch({ 'series.json': s })))).field).toBe('dates');
   });
 
+  it('loads a 0.1 bundle with none of the 0.2 fields', async () => {
+    const { land_model: _lm, ...m } = readJson('manifest.json');
+    const { fire_risk: _fr, ...sc } = readJson('scorecard.json');
+    const c = readJson('cells.geojson');
+    for (const ft of c.features) { delete ft.properties.cover_set; delete ft.properties.map_check; }
+    const b = await loadBundle(BASE, fakeFetch({ 'manifest.json': { ...m, schema_version: '0.1' }, 'scorecard.json': sc, 'cells.geojson': c }));
+    expect(b.manifest.land_model).toBeUndefined();
+    expect(b.scorecard.fire_risk).toBeUndefined();
+  });
+
+  it('ties fire_risk_capture to fire_risk.status passed', async () => {
+    const sc = readJson('scorecard.json');
+    const passed = await errorOf(loadBundle(BASE, fakeFetch({ 'scorecard.json': { ...sc, fire_risk: { ...sc.fire_risk, status: 'passed' } } })));
+    expect([passed.file, passed.field]).toEqual(['scorecard.json', 'tests']);
+    const capture = { ...sc.tests[0], id: 'fire_risk_capture' };
+    const notPassed = await errorOf(loadBundle(BASE, fakeFetch({ 'scorecard.json': { ...sc, tests: [...sc.tests, capture] } })));
+    expect([notPassed.file, notPassed.field]).toEqual(['scorecard.json', 'fire_risk.status']);
+  });
+
+  it('needs a used or simulated land model when cells carry cover sets', async () => {
+    const { land_model: _lm, ...m } = readJson('manifest.json');
+    const e = await errorOf(loadBundle(BASE, fakeFetch({ 'manifest.json': m })));
+    expect([e.file, e.field]).toEqual(['manifest.json', 'land_model.status']);
+  });
+
+  it('rejects map_check on a cell with a two-class set', async () => {
+    const c = readJson('cells.geojson');
+    c.features[5].properties.cover_set = ['forest', 'degraded'];
+    c.features[5].properties.map_check = 'plantation';
+    const e = await errorOf(loadBundle(BASE, fakeFetch({ 'cells.geojson': c })));
+    expect([e.file, e.field]).toEqual(['cells.geojson', 'features[5].properties.cover_set']);
+  });
+
   it('accepts a real-data manifest with no seed and real geometry', async () => {
     const m = readJson('manifest.json');
     const nisar = { ...m, data_kind: 'nisar', generator: { ...m.generator, seed: null }, geometry: { track: 12, frame: 3, direction: 'A' } };

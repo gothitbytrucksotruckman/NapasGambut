@@ -418,3 +418,26 @@ Rain decision, with evidence (mock training rows, 5 block folds, C 0.03): adding
 Verification: `py -W error::DeprecationWarning -W error::FutureWarning pipeline/07b_fire_risk.py --self-test` passes. On `ml/mock/fire_risk_mock.csv` (simulated): **bar not passed**, as expected. Model PR-AUC 0.173 (Colab 0.145, which used C 0.3; here C 0.03), interval 0.116–0.253, below B3 0.142; B2 0.140, B1 0.047; top-10% capture 0.351 vs 0.311; test 1,869 rows / 74 fires; lift 11.9% in the lowest-index fifth vs 0% in the highest; rank correlation with Colab's test scores 0.992. A separable synthetic panel passes; a panel with no test fires gives `not_run`; the panel builder is checked on six hand-made cells (gap interval, first-fire stop, 2 km baseline, distance cap, change across the gap). `npm run typecheck` clean · `npm test` 13 files, 96 tests passed · `npm run build` ok · `npm run check-bundle` ok.
 
 Not verified: the panel on real inputs (no parquet engine here; `context_summary.json`, `fires.parquet` and `landclass.csv` do not exist yet in `data/`).
+
+## 2026-11-15 · M4: contract 0.2, export wiring, mock sync (DONE, awaiting user commit)
+
+User had committed M3 (`213c7f7`) and approved contract 0.2. Two workers in parallel on separate files, both diffs reviewed.
+
+Contract 0.2 (additive; a 0.1 bundle still loads):
+- `src/contract/index.ts`: `schema_version` "0.1" or "0.2"; `COVER_IDS` (forest, degraded, plantation, built); optional `manifest.land_model {status used|not_used|simulated, version, confidence_level, reason_en, reason_id}`; optional cell `cover_set` and `map_check`; optional `scorecard.fire_risk {status passed|not_passed|not_run, test_dates, model_pr_auc, model_pr_auc_ci, best_baseline, lift}`. Zod 4 `z.enum` on a readonly array and `.optional()` checked in `schemas.d.ts`.
+- `src/data/load.ts` rules (so `check-bundle` and 08_export enforce them too): a `fire_risk_capture` test exists exactly when `fire_risk.status` is passed; cells with `cover_set` or `map_check` need `land_model.status` used or simulated; `map_check` needs a one-class set.
+- `docs/data-contract.md`: new "Schema 0.2 (additive)" section.
+
+Export (`pipeline/08_export.py`):
+- Reads `landclass.csv`, `landclass_report.json`, `fire_risk_report.json` and the cube's root attributes; a missing file names the stage to run.
+- Land model used: each cell's class becomes `class_model`, plus `cover_set` and `map_check` (the map's label on flagged cells); scorecard adds `land_model_coverage` and `map_out_of_date`. Not used: map classes, no sets, and `land_model.reason_en/id` lists why. The scorecard is computed after the swap.
+- `scorecard.fire_risk` copied from the 07b report; `fire_risk_capture` added only when the bar is passed, worded "Hindcast of the 2026 season at one site, not a forecast."
+- Guards: refuses a cube not marked `data_source: "asf_live_stream"` (today's cube has no mark and is dry-run output, so it is refused); refuses `class_source` and the land report disagreeing in either direction (the reverse check was added in review).
+
+`pipeline/01_fetch.py`: cubes carry `data_source` (`asf_live_stream` live, `synthetic_dry_run` for `--dry-run`; a merge of mixed batches is `mixed`, which 08 refuses). Checked by reading and compiling only (no xarray or h5py here).
+
+Mock generator: `schema_version` 0.2; `land_model.status "simulated"` with a plain note; every cell has a simulated `cover_set` from its own random stream (seed + 101), so all earlier values and every PNG are byte-identical: 180 empty sets (2.9%), 503 two-class (8.1%), 102 `map_check` (1.8% of one-class cells). `fire_risk.status "not_run"` (no model runs on simulated data) with an honest lift table from the mock series using 07b's panel rule: test passes 6 and 18 Oct; fire rate 5.6% in the lowest HV-index fifth down to 0.6% in the highest. Equal HV values are split by row order (pandas qcut would keep them together); marked as a shortcut.
+
+Verification: self-tests pass for 04b, 04c, 07b, 07_states (14/14) and 08_export (now including land model used and not used, fire passed/not_passed/not_run, both guards, and the app loader on the 0.2 bundle) · `py -m py_compile pipeline/01_fetch.py` ok · `npm run typecheck` clean · `npm test` 13 files, 106 tests passed · `npm run build` ok · `npm run mock` twice gives identical files · `npm run check-bundle` ok on the new mock bundle (data 3.36 MB, images 5.51 MB) and on a copy with the 0.1 manifest, cells and scorecard from the last commit (3.20 MB).
+
+Not verified: 01_fetch's new attribute on a live or dry run; 08_export on real stage outputs. The app does not show the new fields yet (M5).
