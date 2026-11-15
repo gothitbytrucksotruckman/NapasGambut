@@ -362,3 +362,24 @@ Run by a teammate on `fire_risk_mock.csv`. The outputs are in `ml/Firerisk/`. I 
   - Drier means more risk (−1.12), and closer to an earlier fire means more risk (−0.43). Both are as expected.
   - `hv_index_change_db` is +0.37. That comes from the model using the level and the change together, so it effectively averages the last two passes (correlation 0.39). It isn't a red flag.
   - `rain_interval_mm` is +0.17 here and −0.12 in my local run, so its sign is unstable. It is regional, nearly constant across cells within a pass, so it mostly picks up timing and tile location. Don't interpret it.
+
+## 2026-11-15 · ML models in the pipeline: plan (M0) and feature stage (M1, DONE, awaiting user commit)
+
+Plan approved by the user with the recommended answers:
+- Stage order: `03 → 04 → 04b_landclass_features → 04c_landclass → 05 → 06 → 07 → 07b_fire_risk → 08`. New stage outputs are CSV/JSON (small tables; readable on machines without a parquet engine).
+- The land model predicts cover (forest, degraded, plantation, built). Stage 03's own class cascade turns cover into contract classes. The model never changes which cells are reference forest, so the noise floor stays chosen by maps, not by the radar.
+- Weak labels from the two stage-03 cover maps (WorldCover, GFW concessions); `n_maps_agree` is out of 2, not 4 as in the mock.
+- Model is used only if block-CV accuracy against the maps is ≥ 0.75 and coverage on held-out blocks is ≥ 0.87; otherwise the map classes stay and provenance says why.
+- Fire risk keeps the HV index as specified, labelled "HV radar index" in the app, not "drying". Regional rain is dropped (one value per pass at the box centre; sign unstable between runs); M3 shows the per-fold evidence.
+- MAPIE and cleanlab to be installed (pinned) at M2. GLCM is written in numpy (no scikit-image).
+- Contract 0.2 (additive, optional): `manifest.land_model`, `cover_set` and `map_check` on cells, `scorecard.fire_risk`. The mock bundle marks its class sets `simulated` and its fire block `not_run`.
+- M4 adds a guard so 08_export refuses a cube made by `01_fetch.py --dry-run`; today nothing marks such a cube as synthetic.
+- The Colab outputs in `ml/Lancdclass/` and `ml/Firerisk/` (mock data) are the reference targets for the M2 and M3 self-tests: hand-label accuracy 0.92 and coverage 0.89, 18 empty sets, 114 map-check flags; fire PR-AUC 0.145 on 74 test fires. They are never loaded as models or shown as results.
+
+Found while reading: the real stage-03 grid has 8,250 classed cells (3,960 unmatched dropped), and no rewetted cells because no dam data was found. Stage 03 also requires peat for `reference_forest`, which contradicts "mineral soil" (not changed).
+
+M1, new: `pipeline/04b_landclass_features.py`. Writes `data/landclass_features.csv` with the feature columns of `ml/mock/landclass_cells_mock.csv`. Season medians and HV temporal CV come from stage 04's linear cell means; HV spatial std and a 16-level GLCM (contrast, homogeneity, entropy; equal-probability levels over the scene; 4 directions, symmetric) come from the 20 m pixels of the season-median HV image; distance to river from the OSM river lines. Reuses 04's loaders, pixel-to-cell map and cell statistics.
+
+Verification: `py pipeline/04b_landclass_features.py --self-test` passes (36 synthetic cells: column names match the mock CSV, GLCM equals a brute-force count, a constant cell gives contrast 0 and homogeneity 1, the dropped date and masked pixels change nothing, known HV level, CV and river distance recovered) · `npm run typecheck` clean · `npm test` 13 files, 96 tests passed · `npm run build` ok · `npm run check-bundle` ok on the mock bundle.
+
+Not verified: the real run. This machine has no xarray, numcodecs, pyproj or parquet engine, and the cube on disk is dry-run output, so features computed from it now would be meaningless.
