@@ -142,7 +142,7 @@ export const id: Record<Key, string> = {
   'score.th.gap': 'Di bawah median terdrainase, dB', // REVIEW
   'score.open': 'Buka sel {id} di peta', // REVIEW
   'score.empty': 'Tidak ada sel yang memenuhi aturan ini.', // REVIEW
-  'score.tests': 'Empat pemeriksaan pola', // REVIEW
+  'score.tests': 'Pemeriksaan pola', // REVIEW
   'score.testValue': '{statistic}: {value}, dari {n} sel.', // REVIEW
   'score.mockNote': 'Pemeriksaan ini dijalankan pada data simulasi. Hasilnya menunjukkan metodenya bekerja dari awal sampai akhir, bukan keadaan gambut yang sebenarnya.', // REVIEW
 
@@ -223,4 +223,45 @@ export const id: Record<Key, string> = {
   'theme.auto': 'Ikuti perangkat', // REVIEW
   'theme.light': 'Terang',
   'theme.dark': 'Gelap',
+  // Schema 0.2: model lahan dan hindcast risiko kebakaran
+  'cover.forest': 'Hutan', // REVIEW
+  'cover.degraded': 'Lahan terbuka atau terdegradasi', // REVIEW
+  'cover.plantation': 'Perkebunan', // REVIEW
+  'cover.built': 'Lahan terbangun', // REVIEW
+  'pulse.cover': 'Tutupan menurut radar', // REVIEW
+  'pulse.coverSeveral': 'Salah satu dari: {list}', // REVIEW
+  'pulse.coverCantTell': 'Radar tidak bisa memastikan', // REVIEW
+  'pulse.coverSimulated': '(simulasi)', // REVIEW
+  'pulse.coverHint': 'Kelas yang tidak bisa disingkirkan oleh radar, dicek terhadap peta 2021.', // REVIEW
+  'pulse.mapCheck': 'Peta (2021): {map}. Radar (2026): {radar}. Perlu dicek di lapangan.', // REVIEW
+  'score.fire': 'Hindcast risiko kebakaran, musim 2026, satu lokasi', // REVIEW
+  'score.fire.passed': 'Model menempatkan sel yang terbakar lebih tinggi daripada aturan sederhana pada dua lintasan terakhir. Hasilnya ada di pemeriksaan di atas.', // REVIEW
+  'score.fire.notPassed': 'Model tidak mengalahkan aturan sederhana, jadi hanya tabel yang ditampilkan.', // REVIEW
+  'score.fire.numbers': 'PR-AUC model {m} (selang 95% {lo} sampai {hi}) dibandingkan aturan sederhana terbaik, {id} ({rule}): {b}.', // REVIEW
+  'score.fire.B1': 'ada api dalam radius 2 km pada selang terakhir', // REVIEW
+  'score.fire.B2': 'urutkan menurut indeks radar HV', // REVIEW
+  'score.fire.B3': 'B1 dan B2 bersama-sama', // REVIEW
+  'score.fire.notRun': 'Tidak ada model risiko kebakaran yang dijalankan pada bundel ini. Tabel di bawah hanya deskriptif.', // REVIEW
+  'score.fire.caption': 'Bagian sel yang mengalami api sebelum lintasan berikutnya, menurut indeks radar HV, pada lintasan uji {dates}. Kelompok 1 memiliki indeks terendah.', // REVIEW
+  'score.fire.th.fifth': 'Kelompok seperlima indeks radar HV', // REVIEW
+  'score.fire.th.n': 'Sel-lintasan', // REVIEW
+  'score.fire.th.fires': 'Api', // REVIEW
+  'score.fire.th.rate': 'Tingkat api', // REVIEW
+  'score.fire.limit': 'Hindcast satu musim di satu lokasi. Ini mengurutkan sel; ini bukan prakiraan.', // REVIEW
+  'method.modelsH': 'Dua model dan batasannya', // REVIEW
+  'method.landH': 'Tutupan lahan dari radar', // REVIEW
+  'method.land1': 'Model pohon gradient-boosted membaca kecerahan dan tekstur radar di setiap sel: HH, HV, bagaimana HV berubah sepanjang musim, dan bagaimana HV bervariasi di dalam sel. Model ini memilah sel ke dalam empat jenis tutupan: hutan, lahan terbuka atau terdegradasi, perkebunan, dan lahan terbangun.', // REVIEW
+  'method.land2': 'Model belajar dari peta 2021 (ESA WorldCover dan konsesi GFW). Kepadatan kanal dan pengeringan sengaja tidak dijadikan masukan, agar pemeriksaan kanal dan pengeringan tetap adil.', // REVIEW
+  'method.land3': 'Setiap sel mendapat himpunan tutupan yang tidak bisa disingkirkan oleh radar. Pada blok 5 km yang disisihkan, himpunan itu memuat kelas peta sekitar {pct}% dari waktu. Angka ini berarti kesesuaian dengan peta 2021, bukan dengan kondisi di lapangan. Gambut dan kanal tetap diambil dari peta; radar tidak bisa melihat tanah gambut.', // REVIEW
+  'method.landUsed': 'Jenis lahan di peta berasal dari model ini.', // REVIEW
+  'method.landCoverage': 'Dicek pada blok yang disisihkan: {value}% dari {n} sel (target {pct}%).', // REVIEW
+  'method.mapCheck': 'Sel tempat radar dengan yakin berbeda dari peta lama ditandai sebagai perlu dicek di lapangan. Banyak di antaranya sel campuran, bukan perubahan nyata.', // REVIEW
+  'method.fireH': 'Hindcast risiko kebakaran', // REVIEW
+  'method.fire1': 'Model logistik kecil mengurutkan sel menurut risiko kebakaran sampai lintasan berikutnya. Model hanya memakai apa yang sudah diketahui pada lintasan itu: indeks radar HV dan perubahannya, kepadatan kanal, jarak ke api sebelumnya, panjang selang, dan tutupan lahan.', // REVIEW
+  'method.fire2': 'Model diuji pada dua lintasan terakhir yang tidak pernah dilihatnya, dibandingkan tiga aturan sederhana, dengan selang 95% dari pengambilan ulang blok 5 km. Model hanya ditampilkan jika batas bawahnya mengalahkan aturan terbaik; jika tidak, aplikasi menampilkan tabel dan menyebutkannya.', // REVIEW
+  'method.fire3': 'Satu musim, satu lokasi, sedikit api: hindcast, bukan prakiraan.', // REVIEW
+  'method.aiH': 'Penggunaan AI', // REVIEW
+  'method.ai1': 'Kelas lahan dan hindcast risiko kebakaran memakai pembelajaran mesin (scikit-learn, himpunan konformal MAPIE, cleanlab).', // REVIEW
+  'method.ai2': 'Tidak ada model bahasa yang berjalan di aplikasi. Setiap kalimat tentang sel berasal dari templat tetap.', // REVIEW
+  'method.ai3': 'Asisten pemrograman AI membantu menulis perangkat lunak dan teks bahasa Indonesia, yang ditinjau oleh penutur asli.', // REVIEW
 };

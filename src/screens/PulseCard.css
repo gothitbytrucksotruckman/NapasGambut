@@ -127,6 +127,29 @@
   font-weight: 600;
 }
 
+.pulse__cover,
+.pulse__mapcheck {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+.pulse__sym {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 0.15em;
+}
+.pulse__hint,
+.pulse__mapcheck {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+.pulse__hint {
+  display: block;
+  color: var(--ink-soft);
+}
+
 .pulse__table {
   margin-bottom: var(--sp-3);
   font-size: var(--fs-sm);

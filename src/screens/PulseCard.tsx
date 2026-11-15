@@ -4,6 +4,8 @@ import { CopyLink } from '../components/CopyLink';
 import { Swatch } from '../components/Legend';
 import { type LineMode, mainSeries, PulseChart, type PulseData } from '../components/PulseChart';
 import { ScatterSketch } from '../components/ScatterSketch';
+import type { CoverId } from '../contract';
+import { coverView } from '../data/models';
 import { readingFor } from '../data/reading';
 import { cellSeries, isDropped } from '../data/selectors';
 import { formatDate, formatNumber, type Key, t } from '../i18n';
@@ -13,6 +15,27 @@ import './PulseCard.css';
 const MODES: LineMode[] = ['hh', 'hv', 'ratio'];
 const MODE_KEY: Record<LineMode, Key> = { hh: 'pulse.mode.hh', hv: 'pulse.mode.hv', ratio: 'pulse.mode.ratio' };
 const EXPLAIN_KEY: Record<LineMode, Key> = { hh: 'pulse.explain.hh', hv: 'pulse.explain.hv', ratio: 'pulse.explain.ratio' };
+
+// Shape cues for the radar cover row, so the cases differ by more than wording.
+const CantTellSymbol = () => (
+  <svg className="pulse__sym" viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M6 6.2 a2 2 0 1 1 2.6 1.9 c-0.5 0.2 -0.6 0.5 -0.6 1.1 v0.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="8" cy="11.6" r="0.9" fill="currentColor" />
+  </svg>
+);
+const SeveralSymbol = () => (
+  <svg className="pulse__sym" viewBox="0 0 16 16" aria-hidden="true">
+    <rect x="1.5" y="1.5" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="5.5" y="5.5" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+);
+const FlagSymbol = () => (
+  <svg className="pulse__sym" viewBox="0 0 16 16" aria-hidden="true">
+    <path d="M3 15 V1.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M3.75 2 H13 L10.5 5 L13 8 H3.75 Z" fill="currentColor" />
+  </svg>
+);
 
 export function PulseCard() {
   const { state, bundle, dispatch } = useApp();
@@ -52,6 +75,8 @@ export function PulseCard() {
     dropped: manifest.dates.map((_, i) => isDropped(bundle, i)),
   };
   const p = cs.props;
+  const cover = coverView(p, manifest.land_model);
+  const coverLabel = (c: CoverId) => t(lang, `cover.${c}`);
   const reading = readingFor(cs.state, manifest.dates, lang);
   const title = t(lang, 'pulse.chartTitle', { id: selectedCell });
   const stateKey = (c: number) => `state.${c}` as `state.${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`;
@@ -98,6 +123,30 @@ export function PulseCard() {
 
       <dl className="pulse__facts">
         <div><dt>{t(lang, 'pulse.class')}</dt><dd>{t(lang, `class.${p.class}` as Key)}</dd></div>
+        {cover && (
+          <div>
+            <dt>{t(lang, 'pulse.cover')}</dt>
+            <dd>
+              <span className="pulse__cover">
+                {cover.kind === 'cant_tell' && <CantTellSymbol />}
+                {cover.kind === 'several' && <SeveralSymbol />}
+                <span>
+                  {cover.kind === 'cant_tell' ? t(lang, 'pulse.coverCantTell')
+                    : cover.kind === 'one' ? coverLabel(cover.covers[0])
+                    : t(lang, 'pulse.coverSeveral', { list: cover.covers.map(coverLabel).join(', ') })}
+                  {cover.simulated && ` ${t(lang, 'pulse.coverSimulated')}`}
+                </span>
+              </span>
+              <span className="pulse__hint">{t(lang, 'pulse.coverHint')}</span>
+              {cover.mapCheck && (
+                <span className="pulse__mapcheck">
+                  <FlagSymbol />
+                  <span>{t(lang, 'pulse.mapCheck', { map: coverLabel(cover.mapCheck.map), radar: coverLabel(cover.mapCheck.radar) })}</span>
+                </span>
+              )}
+            </dd>
+          </div>
+        )}
         <div><dt>{t(lang, 'pulse.canal')}</dt><dd className="num">{p.canal_density_km_per_km2.toFixed(2)} {t(lang, 'pulse.canalUnit')}</dd></div>
         <div><dt>{t(lang, 'pulse.tree')}</dt><dd className="num">{formatNumber(p.tree_cover_pct, lang)}%</dd></div>
         <div><dt>{t(lang, 'pulse.pixels')}</dt><dd className="num">{t(lang, 'pulse.pixelsOf', { n: p.n_pixels })}</dd></div>

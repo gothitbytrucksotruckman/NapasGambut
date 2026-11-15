@@ -1,4 +1,5 @@
 // Scorecard (PRD 8.4): class table, two action lists, four tests. Every value is read from scorecard.json.
+import { fireRiskView } from '../data/models';
 import { formatDb, testSentence } from '../data/scorecardText';
 import { formatDate, formatNumber, type Key, t } from '../i18n';
 import { useApp } from '../state/store';
@@ -10,6 +11,7 @@ export function Scorecard() {
   const sc = bundle.scorecard;
   const cls = (id: string) => t(lang, `class.${id}` as Key);
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const fire = fireRiskView(sc.fire_risk);
 
   // Opening a cell: select it, show the map. The map screen frames the cell and opens its pulse card.
   const open = (cell: string) => {
@@ -135,6 +137,51 @@ export function Scorecard() {
           ))}
         </ol>
       </section>
+
+      {fire && (
+        <section className="score__block score__block--wide" aria-labelledby="score-fire">
+          <h2 id="score-fire">{t(lang, 'score.fire')}</h2>
+          {fire.status === 'passed' && <p className="score__note">{t(lang, 'score.fire.passed')}</p>}
+          {fire.status === 'not_run' && <p className="score__note">{t(lang, 'score.fire.notRun')}</p>}
+          {fire.status === 'not_passed' && (
+            <p className="score__note">
+              {t(lang, 'score.fire.notPassed')}
+              {fire.model && fire.baseline && (
+                <> <span className="num">{t(lang, 'score.fire.numbers', {
+                  m: fire.model.prAuc.toFixed(3), lo: fire.model.lo.toFixed(3), hi: fire.model.hi.toFixed(3),
+                  id: fire.baseline.id, rule: t(lang, `score.fire.${fire.baseline.id}`), b: fire.baseline.prAuc.toFixed(3),
+                })}</span></>
+              )}
+            </p>
+          )}
+          <div className="score__scroll">
+            <table className="score__table">
+              <caption className="score__caption">
+                {t(lang, 'score.fire.caption', { dates: fire.testDates.map((d) => formatDate(d, lang)).join(', ') })}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">{t(lang, 'score.fire.th.fifth')}</th>
+                  <th scope="col" className="r">{t(lang, 'score.fire.th.n')}</th>
+                  <th scope="col" className="r">{t(lang, 'score.fire.th.fires')}</th>
+                  <th scope="col" className="r">{t(lang, 'score.fire.th.rate')}</th>
+                </tr>
+              </thead>
+              <tbody className="num">
+                {fire.rows.map((r) => (
+                  <tr key={r.quintile}>
+                    <th scope="row">{r.quintile}</th>
+                    <td className="r">{formatNumber(r.n, lang)}</td>
+                    <td className="r">{formatNumber(r.fires, lang)}</td>
+                    <td className="r">{pct(r.rate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="score__note">{t(lang, 'score.fire.limit')}</p>
+        </section>
+      )}
     </article>
   );
 }

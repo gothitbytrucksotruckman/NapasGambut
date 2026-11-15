@@ -28,6 +28,13 @@
   font-family: var(--font-story);
   font-size: var(--fs-lg);
 }
+.method h3 {
+  margin: var(--sp-5) 0 var(--sp-2);
+  font-size: var(--fs-md);
+}
+.method h2 + h3 {
+  margin-top: 0;
+}
 .method p + p {
   margin-top: var(--sp-3);
 }

@@ -1,6 +1,7 @@
 // Method and limits (PRD 8.5). Plain words first, formula second, facts from the manifest last.
 import { Swatch } from '../components/Legend';
 import { PassRuler } from '../components/PassRuler';
+import { landCoverageTest } from '../data/models';
 import { sigmaRange } from '../data/scorecardText';
 import { isDropped } from '../data/selectors';
 import { formatDate, type Key, t } from '../i18n';
@@ -21,6 +22,9 @@ export function Method() {
   const sig = sigmaRange(th.sigma_db);
   const dropped = m.dates.map((_, i) => isDropped(bundle, i));
   const first = m.dates[0], last = m.dates[m.dates.length - 1];
+  const lm = m.land_model;
+  const pct = lm ? Math.round(lm.confidence_level * 100) : 0;
+  const coverage = landCoverageTest(bundle.scorecard.tests);
   const geo = m.geometry;
   const geoText = geo.track === null && geo.frame === null && geo.direction === null
     ? t(lang, 'method.geometryNone')
@@ -71,6 +75,44 @@ export function Method() {
           <li>{t(lang, 'method.limit3')}</li>
           <li>{t(lang, 'method.limit4')}</li>
         </ul>
+      </section>
+
+      {(lm || bundle.scorecard.fire_risk) && (
+        <section aria-labelledby="m-models">
+          <h2 id="m-models">{t(lang, 'method.modelsH')}</h2>
+          {lm && (
+            <>
+              <h3>{t(lang, 'method.landH')}</h3>
+              <p>{t(lang, 'method.land1')}</p>
+              <p>{t(lang, 'method.land2')}</p>
+              <p>{t(lang, 'method.land3', { pct })}</p>
+              {lm.status === 'used' ? (
+                <p>
+                  {t(lang, 'method.landUsed')}
+                  {coverage && <> <span className="num">{t(lang, 'method.landCoverage', { value: (coverage.value * 100).toFixed(1), n: coverage.n, pct })}</span></>}
+                </p>
+              ) : (
+                (lang === 'en' ? lm.reason_en : lm.reason_id) && <p>{lang === 'en' ? lm.reason_en : lm.reason_id}</p>
+              )}
+              <p>{t(lang, 'method.mapCheck')}</p>
+            </>
+          )}
+          {bundle.scorecard.fire_risk && (
+            <>
+              <h3>{t(lang, 'method.fireH')}</h3>
+              <p>{t(lang, 'method.fire1')}</p>
+              <p>{t(lang, 'method.fire2')}</p>
+              <p>{t(lang, 'method.fire3')}</p>
+            </>
+          )}
+        </section>
+      )}
+
+      <section aria-labelledby="m-ai">
+        <h2 id="m-ai">{t(lang, 'method.aiH')}</h2>
+        <p>{t(lang, 'method.ai1')}</p>
+        <p>{t(lang, 'method.ai2')}</p>
+        <p>{t(lang, 'method.ai3')}</p>
       </section>
 
       <section aria-labelledby="m-facts">
