@@ -99,3 +99,29 @@
     margin-left: auto;
   }
 }
+
+/* Repo link; z above map overlays (PulseCard is 5). */
+.gh-fab {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 1px solid var(--rule-strong);
+  border-radius: 50%;
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-panel);
+}
+.gh-fab:hover {
+  background: var(--radar);
+  color: var(--radar-ink);
+}
+.gh-fab:focus-visible {
+  outline: 2px solid var(--radar);
+  outline-offset: 2px;
+}
