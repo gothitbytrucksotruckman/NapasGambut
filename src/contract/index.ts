@@ -111,6 +111,7 @@ export type Cells = z.infer<typeof CellsSchema>;
 
 // 5.6
 const ContextPropsSchema = z.object({
+  id: z.string().min(1).optional(),
   kind: z.enum(['canal', 'river', 'dam', 'town']),
   name_en: z.string().nullable(),
   name_id: z.string().nullable(),
@@ -154,6 +155,17 @@ export const ContextSchema = z.object({
 export type Context = z.infer<typeof ContextSchema>;
 
 // 5.9
+export const CanalRankingSchema = z.object({
+  canal: z.string().min(1),
+  name_en: z.string(),
+  name_id: z.string(),
+  length_km: z.number(),
+  n_cells: z.number().int().positive(),
+  median_min_hh_db: z.number(),
+  n_burned_cells: z.number().int().nonnegative(),
+});
+export type CanalRanking = z.infer<typeof CanalRankingSchema>;
+
 // 0.2: a hindcast of one season at one site; quintile 1 = lowest HV index.
 const FireRiskSchema = z.object({
   status: z.enum(['passed', 'not_passed', 'not_run']),
@@ -188,6 +200,7 @@ export const ScorecardSchema = z.object({
       z.object({ cell: cellId, class: z.string(), min_hh_db: z.number(), date_of_min: isoDate }),
     ),
     dams_to_inspect: z.array(z.object({ cell: cellId, min_hh_db: z.number(), gap_vs_drained_median_db: z.number() })),
+    canals: z.array(CanalRankingSchema).max(20).optional(),
   }),
   // 0.2 adds ids: fire_risk_capture (only when fire_risk.status is passed),
   // land_model_coverage and map_out_of_date (only when manifest.land_model.status is used).

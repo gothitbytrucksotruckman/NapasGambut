@@ -651,12 +651,40 @@ def _classify_cell_six_rules(
         return "rewetted"
     if peat_fraction >= 0.50 and (canal_length_m > 0.0 or tree_cover_pct < 70.0):
         return "drained"
-    if in_ref_box and peat_fraction >= 0.50 and tree_cover_pct >= 70.0 and canal_length_m == 0.0:
-        return "reference_forest"
+    # Reference = dense forest on mineral (non-peat) soil: peat forest dries in the dry season too,
+    # so subtracting it would cancel the drying signal. Out-of-box candidates are a fallback pool.
+    if peat_fraction < 0.50 and tree_cover_pct >= 70.0 and canal_length_m == 0.0:
+        return "reference_forest" if in_ref_box else "mineral_forest"
     if peat_fraction >= 0.50 and tree_cover_pct >= 70.0 and canal_length_m == 0.0:
         return "intact_forest"
     return None
 # End AI-generated (lines 475-659)
+
+
+def _settle_reference(records, geojson_cells, ref_min_cells):
+    """Top up reference cells: mineral forest in the box, then mineral forest elsewhere, then intact peat forest.
+
+    Leftover out-of-box mineral forest is not a contract class, so it is dropped.
+    Returns (records, geojson_cells, ref_count, reference_soil, n_dropped).
+    """
+
+    def promote(rec, feat):
+        rec["class"] = rec["class_id"] = feat["properties"]["class"] = "reference_forest"
+
+    ref_count = sum(1 for r in records if r["class"] == "reference_forest")
+    n_mineral = ref_count
+    for want in ("mineral_forest", "intact_forest"):
+        for rec, feat in zip(records, geojson_cells):
+            if ref_count >= ref_min_cells:
+                break
+            if rec["class"] == want and rec["canal_length_m"] == 0.0 and rec["concession_fraction"] == 0.0:
+                promote(rec, feat)
+                ref_count += 1
+                n_mineral += want == "mineral_forest"
+    reference_soil = "mineral" if n_mineral == ref_count else ("peat_fallback" if n_mineral == 0 else "mixed")
+    keep = [i for i, r in enumerate(records) if r["class"] != "mineral_forest"]
+    n_dropped = len(records) - len(keep)
+    return [records[i] for i in keep], [geojson_cells[i] for i in keep], ref_count, reference_soil, n_dropped
 
 
 def _compute_exact_canal_lengths_utm(cells_gdf, canals_gdf):
@@ -928,16 +956,11 @@ def build_spatial_grid(cfg, dry_run=False):
             }
         )
 
-    ref_count = sum(1 for r in records if r["class"] == "reference_forest")
-    if ref_count < ref_min_cells:
-        for rec, feat in zip(records, geojson_cells):
-            if rec["class"] == "intact_forest" and rec["canal_length_m"] == 0.0 and rec["concession_fraction"] == 0.0:
-                rec["class"] = "reference_forest"
-                rec["class_id"] = "reference_forest"
-                feat["properties"]["class"] = "reference_forest"
-                ref_count += 1
-                if ref_count >= ref_min_cells:
-                    break
+    records, geojson_cells, ref_count, reference_soil, n_left = _settle_reference(records, geojson_cells, ref_min_cells)
+    dropped_unmatched += n_left
+    if reference_soil != "mineral":
+        print(f"[WARN] Only mineral-soil forest gave too few reference cells; reference_soil={reference_soil}. "
+              "Peat forest dries too, so the drying index is understated. Say so on the Method screen.")
 
     assert ref_count >= ref_min_cells, (
         f"Reference forest gate failed: {ref_count} < {ref_min_cells}"
@@ -1002,6 +1025,8 @@ def build_spatial_grid(cfg, dry_run=False):
         "tree_cover_source": "esa_worldcover_10m_2021_v200",
         "license": "CC BY 4.0",
         "dropped_unmatched_cells": int(dropped_unmatched),
+        "reference_soil": reference_soil,
+        "reference_cell_count": int(ref_count),
         "sources": [
             {
                 "name": "ESA WorldCover 10 m 2021 v200",

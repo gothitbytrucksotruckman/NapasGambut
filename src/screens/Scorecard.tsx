@@ -18,6 +18,11 @@ export function Scorecard() {
     dispatch({ type: 'select', cell });
     dispatch({ type: 'go', screen: 'map' });
   };
+  // Opening a canal: highlight it and fit map bounds to its LineString coordinates.
+  const openCanal = (canal: string) => {
+    dispatch({ type: 'selectCanal', canal });
+    dispatch({ type: 'go', screen: 'map' });
+  };
   const CellButton = ({ id }: { id: string }) => (
     <button type="button" className="score__cell num" onClick={() => open(id)} aria-label={t(lang, 'score.open', { id })}>
       {id}
@@ -124,6 +129,51 @@ export function Scorecard() {
           </div>
         )}
       </section>
+
+      {sc.rankings.canals && sc.rankings.canals.length > 0 && (
+        <section className="score__block score__block--wide" aria-labelledby="score-canals">
+          <h2 id="score-canals">{t(lang, 'score.canals')}</h2>
+          <p className="score__note">{t(lang, 'score.canalsNote')}</p>
+          <div className="score__scroll">
+            <table className="score__table">
+              <thead>
+                <tr>
+                  <th scope="col" className="r">{t(lang, 'score.th.rank')}</th>
+                  <th scope="col">{t(lang, 'score.th.canal')}</th>
+                  <th scope="col" className="r">{t(lang, 'score.th.length')}</th>
+                  <th scope="col" className="r">{t(lang, 'score.th.n')}</th>
+                  <th scope="col" className="r">{t(lang, 'score.th.median')}</th>
+                  <th scope="col" className="r">{t(lang, 'score.th.burnedCells')}</th>
+                </tr>
+              </thead>
+              <tbody className="num">
+                {sc.rankings.canals.map((r, i) => {
+                  const label = lang === 'en' ? r.name_en : r.name_id;
+                  return (
+                    <tr key={r.canal}>
+                      <td className="r">{i + 1}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="score__cell"
+                          onClick={() => openCanal(r.canal)}
+                          aria-label={t(lang, 'score.openCanal', { name: label })}
+                        >
+                          {label}
+                        </button>
+                      </td>
+                      <td className="r">{r.length_km.toFixed(2)} km</td>
+                      <td className="r">{formatNumber(r.n_cells, lang)}</td>
+                      <td className="r"><strong>{formatDb(r.median_min_hh_db)}</strong> dB</td>
+                      <td className="r">{formatNumber(r.n_burned_cells, lang)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="score__block score__block--wide" aria-labelledby="score-tests">
         <h2 id="score-tests">{t(lang, 'score.tests')}</h2>

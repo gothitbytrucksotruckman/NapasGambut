@@ -12,6 +12,7 @@ export const id: Record<Key, string> = {
   'nav.map': 'Peta musim', // REVIEW
   'nav.scorecard': 'Rapor', // REVIEW
   'nav.method': 'Metode',
+  'nav.world': 'Gambut dunia', // REVIEW
 
   'load.title': 'Memuat musim', // REVIEW
   'error.title': 'Paket data gagal dimuat', // REVIEW
@@ -135,12 +136,18 @@ export const id: Record<Key, string> = {
   'score.fastestNote': 'Sel terdrainase dan perkebunan yang indeks kebasahannya turun paling rendah musim ini.', // REVIEW
   'score.dams': 'Sekat kanal yang perlu diperiksa', // REVIEW
   'score.damsNote': 'Sel yang dibasahi kembali tetapi mengering lebih parah daripada sel terdrainase pada umumnya. Sekatnya mungkin bocor.', // REVIEW
+  'score.canals': 'Tutup kanal ini lebih dulu', // REVIEW
+  'score.canalsNote': 'Kanal OpenStreetMap yang diurutkan menurut median indeks HH terendah pada sel gambut dalam jarak 1 km.', // REVIEW
   'score.th.rank': 'Peringkat',
   'score.th.cell': 'Sel',
+  'score.th.canal': 'Kanal', // REVIEW
+  'score.th.length': 'Panjang', // REVIEW
   'score.th.min': 'Terendah, dB',
   'score.th.when': 'Kapan',
   'score.th.gap': 'Di bawah median terdrainase, dB', // REVIEW
+  'score.th.burnedCells': 'Sel terbakar', // REVIEW
   'score.open': 'Buka sel {id} di peta', // REVIEW
+  'score.openCanal': 'Sorot kanal {name} di peta', // REVIEW
   'score.empty': 'Tidak ada sel yang memenuhi aturan ini.', // REVIEW
   'score.tests': 'Pemeriksaan pola', // REVIEW
   'score.testValue': '{statistic}: {value}, dari {n} sel.', // REVIEW
@@ -223,6 +230,22 @@ export const id: Record<Key, string> = {
   'theme.auto': 'Ikuti perangkat', // REVIEW
   'theme.light': 'Terang',
   'theme.dark': 'Gelap',
+
+  // World tropical peatlands stretch screen (Track D3)
+  'world.title': 'Metode yang sama, tiga gambut tropis', // REVIEW
+  'world.lede': 'Gambut tropis menyimpan karbon sangat besar di tiga benua. Awan tebal sering membutakan kamera optik, sedangkan pemantauan pita L NISAR 12 harian menembus awan dan asap.', // REVIEW
+  'world.approx': 'Perkiraan', // REVIEW
+  'world.mapLabel': 'Peta dunia statis yang menandai tiga wilayah gambut tropis (posisi perkiraan)', // REVIEW
+  'world.belt': 'Sabuk gambut tropis (30 LU sampai 30 LS)', // REVIEW
+  'world.coords': 'Pusat perkiraan', // REVIEW
+  'world.noteLabel': 'Pemantauan pita L 12 hari', // REVIEW
+  'world.openSea': 'Buka peta musim Kalimantan Tengah', // REVIEW
+  'world.sea.name': 'Asia Tenggara (Kalimantan dan Sumatra)', // REVIEW
+  'world.sea.note': 'Memantau pengeringan musim kemarau di sepanjang kanal, memeriksa kinerja sekat kanal, dan menandai gambut kritis sebelum api menyala di balik asap.', // REVIEW
+  'world.congo.name': 'Cuvette Centrale (Cekungan Kongo)', // REVIEW
+  'world.congo.note': 'Membangun data dasar 12 harian tanpa putus di kompleks rawa gambut tropis utuh terbesar di dunia di bawah tutupan awan ekuator.', // REVIEW
+  'world.amazon.name': 'Pastaza-Maranon (Amazon Peru)', // REVIEW
+  'world.amazon.note': 'Mengikuti denyut banjir musiman dan perubahan kebasahan rawa palem di Amazon barat tanpa kehilangan lintasan akibat awan hujan tropis.', // REVIEW
   // Schema 0.2: model lahan dan hindcast risiko kebakaran
   'cover.forest': 'Hutan', // REVIEW
   'cover.degraded': 'Lahan terbuka atau terdegradasi', // REVIEW

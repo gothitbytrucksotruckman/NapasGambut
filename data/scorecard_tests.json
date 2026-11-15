@@ -1,0 +1,58 @@
+{
+  "tests": [
+    {
+      "id": "reference_steady",
+      "name": "Reference forest stays steady",
+      "name_en": "Reference forest stays steady",
+      "name_id": "Hutan referensi tetap stabil",
+      "statistic": "Max consecutive-pass jump in reference-forest median raw HH backscatter, dB",
+      "value": 0.0205,
+      "n": 1368,
+      "note": "Largest pass-to-pass shift across 10 kept dates was 0.020 dB (2026-07-04 to 2026-07-16). A small value shows the reference forest did not drift.",
+      "note_en": "Largest pass-to-pass shift across 10 kept dates was 0.020 dB (2026-07-04 to 2026-07-16). A small value shows the reference forest did not drift.",
+      "note_id": "Lonjakan terbesar antarlintasan di 10 tanggal valid adalah 0.020 dB (2026-07-04 ke 2026-07-16). Nilai kecil menunjukkan hutan referensi stabil."
+    },
+    {
+      "id": "split_half_null",
+      "name": "Split-half reference null check",
+      "name_en": "Split-half reference null check",
+      "name_id": "Uji nol belah-dua hutan referensi",
+      "statistic": "Share of held-out reference cell-passes inside +-2*sigma (seed=42)",
+      "value": 0.9511,
+      "n": 6156,
+      "note": "Split 1368 reference cells 50/50 (seed 42); 95.1% of 6156 held-out cell-passes fell within +-2 sigma (~95% indicates calibrated noise bounds).",
+      "note_en": "Split 1368 reference cells 50/50 (seed 42); 95.1% of 6156 held-out cell-passes fell within +-2 sigma (~95% indicates calibrated noise bounds).",
+      "note_id": "Membagi 1368 sel referensi 50/50 (seed 42); 95.1% dari 6156 pengamatan berada dalam +-2 sigma (~95% diharapkan)."
+    },
+    {
+      "id": "size_sensitivity",
+      "name": "Trend holds at 1000 m cell size",
+      "name_en": "Trend holds at 1000 m cell size",
+      "name_id": "Tren bertahan pada sel 1000 m",
+      "statistic": "Spearman rank correlation at 1000 m (canal density vs season-min HH index)",
+      "value": 0.074,
+      "n": 1680,
+      "note": "Aggregated in linear power to 1000 m cells: rho=0.074 (n=1680) vs -0.009 at 500 m (n=6833). Warning: sign flipped at 1,000 m.",
+      "note_en": "Aggregated in linear power to 1000 m cells: rho=0.074 (n=1680) vs -0.009 at 500 m (n=6833). Warning: sign flipped at 1,000 m.",
+      "note_id": "Diagregasi dalam daya linear ke sel 1000 m: rho=0.074 (n=1680) vs -0.009 at 500 m (n=6833). Peringatan: tanda korelasi berbalik pada 1.000 m."
+    }
+  ],
+  "available_test_ids": [
+    "reference_steady",
+    "split_half_null",
+    "size_sensitivity"
+  ],
+  "omitted_tests": [
+    "fire_agreement",
+    "soil_moisture_agrees",
+    "cband_same_direction",
+    "burned_matches_modis"
+  ],
+  "sentinel1_catalog_check": {
+    "status": "ok",
+    "counts": {
+      "early": 30,
+      "peak": 30
+    }
+  }
+}

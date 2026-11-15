@@ -37,6 +37,7 @@ describe('generator', () => {
     for (const t of sc.tests) expect(t.note_en).toMatch(/descriptive/i);
     expect(sc.rankings.fastest_drying.length).toBe(20);
     expect(sc.rankings.dams_to_inspect.length).toBeGreaterThan(0);
+    expect(sc.rankings.canals?.length).toBe(20);
   });
 
   it('labels the 0.2 land model fields as simulated and gives every cell a cover set', () => {

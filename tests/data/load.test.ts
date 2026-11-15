@@ -84,4 +84,32 @@ describe('loadBundle', () => {
     const b = await loadBundle(BASE, fakeFetch({ 'manifest.json': nisar }));
     expect(b.manifest.data_kind).toBe('nisar');
   });
+
+  it('loads both 0.1 bundles (without canals) and 0.2 bundles (with canals)', async () => {
+    const m = readJson('manifest.json');
+    const sc = readJson('scorecard.json');
+    const cf = readJson('context_features.geojson');
+    const scNoCanals = { ...sc, rankings: { fastest_drying: sc.rankings.fastest_drying, dams_to_inspect: sc.rankings.dams_to_inspect } };
+    const cfNoIds = {
+      ...cf,
+      features: cf.features.map((f: { properties: { kind: string; name_en: string | null; name_id: string | null } } & Record<string, unknown>) => ({
+        ...f,
+        properties: { kind: f.properties.kind, name_en: f.properties.name_en, name_id: f.properties.name_id },
+      })),
+    };
+    const v1 = await loadBundle(
+      BASE,
+      fakeFetch({
+        'manifest.json': { ...m, schema_version: '0.1' },
+        'scorecard.json': scNoCanals,
+        'context_features.geojson': cfNoIds,
+      }),
+    );
+    expect(v1.manifest.schema_version).toBe('0.1');
+    expect(v1.scorecard.rankings.canals).toBeUndefined();
+
+    const v2 = await loadBundle(BASE, fakeFetch());
+    expect(v2.manifest.schema_version).toBe('0.2');
+    expect(v2.scorecard.rankings.canals?.length).toBeGreaterThan(0);
+  });
 });

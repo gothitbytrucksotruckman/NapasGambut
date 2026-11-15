@@ -59,6 +59,18 @@ CLASS_LABELS = [
     ("reference_forest", "Reference forest (mineral soil)", "Hutan acuan (tanah mineral)"),
     ("settlement", "Settlement", "Permukiman"),
 ]
+REFERENCE_FALLBACK_LABELS = {
+    "mixed": ("Reference forest (mostly mineral soil, some peat)", "Hutan acuan (sebagian besar tanah mineral, sebagian gambut)"),  # REVIEW
+    "peat_fallback": ("Reference forest (peat; too little forest on mineral soil)", "Hutan acuan (gambut; hutan di tanah mineral terlalu sedikit)"),  # REVIEW
+}
+
+
+def reference_labels(labels, prov):
+    """Keep the 'mineral soil' label honest: 03_grid.py records which soil the reference cells are on."""
+    alt = REFERENCE_FALLBACK_LABELS.get(prov.get("reference_soil"))
+    return [(i, *alt) if i == "reference_forest" and alt else (i, e, l) for i, e, l in labels]
+
+
 NO_DATA, FIRE_RADAR, FIRE_SILENT, REWETTING = 1, 2, 3, 5
 LANDCLASS_VERSION = "nisar_landclass_v1"  # 04c_landclass.py VERSION
 
@@ -97,6 +109,14 @@ def spearman(a: list[float], b: list[float]) -> float:
 
 
 # ---------- inputs ----------
+
+def _load_canal_ranking():
+    path = Path(__file__).resolve().parent / "canal_ranking.py"
+    spec = importlib.util.spec_from_file_location("canal_ranking_mod", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
 
 def _load_config():
     spec = importlib.util.spec_from_file_location("census_mod", Path(__file__).resolve().parent / "00_census.py")
@@ -510,7 +530,7 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
             "deep_k": float(th["deep_k"]),
             "rain_return_mm": float(cfg["rain_return_mm"]),
         },
-        "classes": [{"id": i, "label_en": e, "label_id": l} for i, e, l in CLASS_LABELS],
+        "classes": [{"id": i, "label_en": e, "label_id": l} for i, e, l in reference_labels(CLASS_LABELS, prov)],
         "land_model": land_model,
         "states": [{"code": c, "key": k, "label_en": e, "label_id": l} for c, k, e, l in STATE_LABELS],
         "images": {
@@ -576,12 +596,19 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
             "note_id": "Hindcast musim 2026 di satu lokasi, bukan prakiraan.",  # REVIEW
         })
 
+    canal_mod = _load_canal_ranking()
+    raw_context = [f for f in inp["context_fc"]["features"] if f["properties"].get("kind") in ("canal", "river", "dam", "town")]
+    context_fc = {"type": "FeatureCollection", "features": canal_mod.assign_canal_ids(raw_context)}
+    ranked_canals = canal_mod.rank_canals(cells_fc, inp["stats"], inp["states"], context_fc)
+    if ranked_canals:
+        scorecard["rankings"]["canals"] = ranked_canals
+        manifest["schema_version"] = "0.2"
+    elif any(f["properties"].get("kind") == "canal" and f["properties"].get("id") for f in context_fc["features"]):
+        manifest["schema_version"] = "0.2"
+
     def enc(v) -> bytes:  # compact, and allow_nan=False makes a stray NaN an error instead of invalid JSON
         return json.dumps(v, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
-    context_fc = {"type": "FeatureCollection", "features": [
-        f for f in inp["context_fc"]["features"] if f["properties"].get("kind") in ("canal", "river", "dam", "town")
-    ]}
     files = {
         "manifest.json": enc(manifest),
         "cells.geojson": enc(cells_fc),
@@ -744,6 +771,9 @@ def run_self_test() -> int:
         assert [r["date"] for r in m["images"]["radar"]] == ["2026-07-04", "2026-07-16", "2026-08-09", "2026-08-21"]
         assert s["hh"][0] == [0, -12, None, -25, -31] and s["coh"][0] == [55, None, None, 12], s["coh"][0]
         assert "extra_field" not in cp[0]
+        assert len(sc["rankings"].get("canals", [])) == 1, sc["rankings"]
+        # The model calls cell 3 plantation, which is peat, so the canal reaches 3 cells (2 when the map says forest, below).
+        assert sc["rankings"]["canals"][0]["n_cells"] == 3 and sc["rankings"]["canals"][0]["n_burned_cells"] == 1, sc["rankings"]["canals"][0]
 
         # Land model used: model classes, parsed sets, map_check only on the flagged cell, and the scorecard follows them.
         assert [p["class"] for p in cp] == ["drained", "rewetted", "plantation"]
@@ -779,6 +809,7 @@ def run_self_test() -> int:
             assert "check coverage 0.8 is below 0.87" in m2["land_model"]["reason_id"]
             assert [t["id"] for t in sc2["tests"]] == ["canal_vs_drying", "rewetted_vs_drained", "drying_before_fire", "forest_flat"]
             assert sc2["rankings"]["fastest_drying"][0] == {"cell": "r000c000", "class": "drained", "min_hh_db": -3.1, "date_of_min": "2026-08-21"}
+            assert sc2["rankings"]["canals"][0]["n_cells"] == 2, sc2["rankings"]["canals"][0]
             assert sc2["fire_risk"]["status"] == fr["status"] and len(sc2["fire_risk"]["lift"]) == 2
         assert sc2["fire_risk"]["model_pr_auc"] is None and sc2["fire_risk"]["best_baseline"] is None
 

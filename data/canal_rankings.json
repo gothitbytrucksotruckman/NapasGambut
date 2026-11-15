@@ -1,0 +1,182 @@
+[
+  {
+    "canal": "osm:199269782c",
+    "name_en": "Unnamed canal #402",
+    "name_id": "Kanal tanpa nama #402",
+    "length_km": 0.61,
+    "n_cells": 1,
+    "median_min_hh_db": -1.9,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:cd79fa2022",
+    "name_en": "Unnamed canal #198",
+    "name_id": "Kanal tanpa nama #198",
+    "length_km": 0.87,
+    "n_cells": 22,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:5c70444c9e",
+    "name_en": "Unnamed canal #370",
+    "name_id": "Kanal tanpa nama #370",
+    "length_km": 0.31,
+    "n_cells": 18,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:80dbc36e0d",
+    "name_en": "Unnamed canal #375",
+    "name_id": "Kanal tanpa nama #375",
+    "length_km": 0.41,
+    "n_cells": 17,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:8b22d8de62",
+    "name_en": "Unnamed canal #306",
+    "name_id": "Kanal tanpa nama #306",
+    "length_km": 0.9,
+    "n_cells": 17,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:06fafbb9d9",
+    "name_en": "Unnamed canal #371",
+    "name_id": "Kanal tanpa nama #371",
+    "length_km": 0.32,
+    "n_cells": 15,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:de8b821bab",
+    "name_en": "Unnamed canal #368",
+    "name_id": "Kanal tanpa nama #368",
+    "length_km": 1.64,
+    "n_cells": 15,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:18dd88c1f0",
+    "name_en": "Unnamed canal #201",
+    "name_id": "Kanal tanpa nama #201",
+    "length_km": 0.5,
+    "n_cells": 14,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:298b2459fe",
+    "name_en": "Unnamed canal #305",
+    "name_id": "Kanal tanpa nama #305",
+    "length_km": 0.56,
+    "n_cells": 14,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:05a889d965",
+    "name_en": "Unnamed canal #369",
+    "name_id": "Kanal tanpa nama #369",
+    "length_km": 0.61,
+    "n_cells": 13,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:17db3094b8",
+    "name_en": "Unnamed canal #202",
+    "name_id": "Kanal tanpa nama #202",
+    "length_km": 0.42,
+    "n_cells": 13,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:b5b4b5a4c2",
+    "name_en": "Unnamed canal #200",
+    "name_id": "Kanal tanpa nama #200",
+    "length_km": 0.49,
+    "n_cells": 13,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:b6a4a4401e",
+    "name_en": "Unnamed canal #376",
+    "name_id": "Kanal tanpa nama #376",
+    "length_km": 0.29,
+    "n_cells": 13,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:35e1353f47",
+    "name_en": "Unnamed canal #379",
+    "name_id": "Kanal tanpa nama #379",
+    "length_km": 0.28,
+    "n_cells": 12,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:3b2d833bb3",
+    "name_en": "Unnamed canal #222",
+    "name_id": "Kanal tanpa nama #222",
+    "length_km": 0.48,
+    "n_cells": 12,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:c019c9b147",
+    "name_en": "Unnamed canal #205",
+    "name_id": "Kanal tanpa nama #205",
+    "length_km": 0.28,
+    "n_cells": 12,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:60f3f00cb7",
+    "name_en": "Unnamed canal #221",
+    "name_id": "Kanal tanpa nama #221",
+    "length_km": 0.3,
+    "n_cells": 11,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:83e454fd4c",
+    "name_en": "Unnamed canal #203",
+    "name_id": "Kanal tanpa nama #203",
+    "length_km": 0.44,
+    "n_cells": 10,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:0cbcac64af",
+    "name_en": "Unnamed canal #1108",
+    "name_id": "Kanal tanpa nama #1108",
+    "length_km": 2.07,
+    "n_cells": 9,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  },
+  {
+    "canal": "osm:2de8417704",
+    "name_en": "Unnamed canal #204",
+    "name_id": "Kanal tanpa nama #204",
+    "length_km": 0.35,
+    "n_cells": 9,
+    "median_min_hh_db": -1.8,
+    "n_burned_cells": 0
+  }
+]
