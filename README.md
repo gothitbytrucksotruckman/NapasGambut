@@ -2,190 +2,446 @@
 
 **When smoke hides the peat, NISAR still sees it.**
 
-An interactive 12-day L-band radar peatland monitor built by **Team Betelgeuse** for the **NASA Space Apps Challenge 2026** (*Dancing with the SARs*).
+Napas Gambut is a peatland monitor for Central Kalimantan, Indonesia. It reads NISAR L-band radar every 12 days and shows, cell by cell, where peat is drying, re-wetting or burning, including during haze, when optical satellites see nothing.
 
-**Live app:** https://gothitbytrucksotruckman.github.io/NapasGambut/ (English and Bahasa Indonesia, works offline after the first visit)
+Built by **Team Betelgeuse** for the NASA Space Apps Challenge 2026, challenge *Dancing with the SARs*.
 
-## The problem
+[**Live app**](https://gothitbytrucksotruckman.github.io/NapasGambut/) · [Method](docs/method.md) · [Data contract](docs/data-contract.md) · [Models](docs/models.md) · [Sources](docs/sources.md)
 
-Peatlands cover 3–4% of Earth's land but store up to a third of its soil carbon ([UNEP Global Peatlands Assessment, 2022](https://www.unep.org/en/news-and-stories/press-release/global-assessment-reveals-huge-potential-peatlands-climate-solution)). When drained peat dries out it burns below the surface. In 2015, Indonesia lost 2.6 million ha to fire and US$16.1 billion; about a third of the burned area was peat, which made most of the haze ([World Bank, *The Cost of Fire*, 2016](https://doi.org/10.1596/23840)).
+![React](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-7.0-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![MapLibre](https://img.shields.io/badge/MapLibre_GL-6.18-396CB2?logo=maplibre&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-Peat-restoration staff and village fire brigades decide which canals to block before the next dry spell. Under smoke and cloud, optical satellites cannot show them where the peat is drying.
+---
 
-## What Napas Gambut does
+## Contents
 
-**Napas Gambut** tracks tropical peat drying, re-wetting, burning, and fires the radar misses across a 500 m grid in Central Kalimantan, Indonesia (`study_box: [113.75, -2.25, 114.25, -1.75]`). It compares L-band SAR change against dense forest on mineral (non-peat) soil and that forest's own noise floor, and labels a cell only when its change is larger than that noise. Because L-band radar sees through haze, it keeps working when smoke hides the ground from optical cameras. It measures a relative wetness signal, not water-table depth or subsidence.
+- [Why this matters](#why-this-matters)
+- [What the app shows](#what-the-app-shows)
+- [Project status](#project-status)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Processing pipeline](#processing-pipeline)
+- [How a cell gets its state](#how-a-cell-gets-its-state)
+- [Study area and land classes](#study-area-and-land-classes)
+- [Data sources](#data-sources)
+- [Getting started](#getting-started)
+- [Repository layout](#repository-layout)
+- [Testing and quality gates](#testing-and-quality-gates)
+- [Use of AI](#use-of-ai)
+- [Team](#team)
+- [License](#license)
 
-The app has five screens:
+---
 
-1. **Smoke and radar**: a swipe between a smoky true-colour image and the radar view of the same day.
-2. **Season map**: plays every 12-day pass; each 500 m cell is coloured by its state, and a pulse card per cell shows its wetness against the noise band, rain, coherence and fires.
-3. **Scorecard**: results by land type, where to block canals first, which dams to inspect, and the self-checks.
-4. **Method**: the method in plain language, its limits, and the use of AI.
-5. **Global peat**: the world's large tropical peatlands NISAR passes over every 12 days.
+## Why this matters
 
-## Status (15 Nov 2026)
+Peatlands cover 3 to 4% of the Earth's land but hold up to a third of its soil carbon ([UNEP, 2022](https://www.unep.org/en/news-and-stories/press-release/global-assessment-reveals-huge-potential-peatlands-climate-solution)). Drained peat dries out and burns underground. In 2015 Indonesia lost 2.6 million ha to fire and US$16.1 billion in damage, and peat fires produced most of the haze ([World Bank, 2016](https://doi.org/10.1596/23840)).
 
-- The live app shows a **simulated season**, labelled "Simulated data" on every screen. No simulated number is presented as a measurement.
-- Real data so far: two NISAR GCOV passes (22 Jun and 4 Jul 2026) streamed from ASF, and the real 500 m grid (OSM canals, GFW peat and concessions, ESA WorldCover).
-- The pipeline stages pass their self-tests on simulated inputs. `08_export.py` will not write a real bundle until every kept pass is live data, so the app switches to real data with no code changes once the remaining passes are streamed.
+Restoration agencies and village fire brigades have to decide which canals to block before the next dry spell. During the fire season the sky is full of smoke, so optical imagery cannot tell them where the peat is drying. L-band radar can: its 24 cm wavelength passes through smoke and cloud and responds to surface moisture.
 
-## NASA data used
+## What the app shows
 
-| Dataset | Role |
+| Screen | Purpose |
 | --- | --- |
-| NISAR L2 GCOV (NASA-ISRO, via ASF DAAC) | Core signal: 12-day L-band HH/HV backscatter |
-| NASA FIRMS VIIRS 375 m active fires | Fire detections joined to each cell and pass |
-| NASA GIBS VIIRS true colour | The smoke image on the Smoke and radar screen |
-| NISAR L2 SME2 soil moisture (provisional) | Cross-check only; skipped when it can't be streamed |
-| NISAR L2 GUNW | Coherence; empty when no interferometric pairs exist |
-| MODIS MCD64A1 burned area | Burn-scar cross-check |
+| **Smoke and radar** | Swipe between a smoky true-colour image and the radar view of the same day. |
+| **Season map** | Plays every 12-day pass. Each 500 m cell is coloured by its state; a pulse card shows its wetness index against the noise band, with rain, coherence and fire counts. |
+| **Scorecard** | Results by land type, canals to block first, dams to inspect, and the scientific self-checks. |
+| **Method** | The method in plain language, its limits, and how AI was used. |
+| **Global peat** | The large tropical peatlands NISAR revisits every 12 days. |
 
-Other data: ESA WorldCover 2021, Global Forest Watch peat and concessions, OpenStreetMap waterways, BRGM PRIMS, Open-Meteo ERA5 rainfall, Copernicus Sentinel-1, Natural Earth. Full list, licences and citations: [`docs/sources.md`](docs/sources.md).
+The app is bilingual (English and Bahasa Indonesia), keyboard accessible, respects `prefers-reduced-motion`, and works offline after the first visit.
+
+## Project status
+
+*As of 15 November 2026.*
+
+| Component | Status |
+| --- | --- |
+| Web app (5 screens, EN/ID, offline) | Live on GitHub Pages |
+| Data shown in the live app | Simulated season, labelled "Simulated data" on every screen |
+| NISAR GCOV passes streamed from ASF | 2 of 10 (22 Jun and 4 Jul 2026) |
+| 500 m analysis grid (OSM canals, GFW peat and concessions, ESA WorldCover) | Built from real data |
+| BRGM PRIMS canal-dam points | Not available for this box, so no cell is classed "rewetted" |
+| Pipeline self-tests | Passing on simulated inputs |
+
+`08_export.py` refuses to write a real bundle until every kept pass comes from a live ASF stream. Once the remaining passes are processed, the app switches to real data with no code changes.
+
+---
 
 ## Architecture
 
-Offline computation is kept apart from the browser:
+Heavy computation runs offline in Python. The browser only renders a small static bundle, so the site needs no backend and can be hosted for free.
 
-- **Python pipeline ([`pipeline/`](pipeline/))**: ingests HDF5/Zarr SAR data, WorldCover tiles, GFW peat and concession polygons, OpenStreetMap canals, NASA FIRMS fire detections, rainfall and cross-check sensors, and exports a compact static bundle.
-- **Static React + MapLibre web app ([`src/`](src/))**: renders the JSON/GeoJSON/PNG bundle client-side with no runtime backend calls (only optional basemap tiles), full English/Indonesian localisation, and an offline service worker ([`public/sw.js`](public/sw.js)). The app never recomputes science; every number comes from the bundle.
+```mermaid
+flowchart LR
+    subgraph SRC["Data sources"]
+        A1["NISAR L2 GCOV<br/>ASF DAAC"]
+        A2["NASA FIRMS<br/>VIIRS fires"]
+        A3["NASA GIBS<br/>true colour"]
+        A4["ESA WorldCover<br/>GFW peat and concessions"]
+        A5["OpenStreetMap<br/>waterways"]
+        A6["Open-Meteo<br/>ERA5 rainfall"]
+    end
 
----
+    subgraph PIPE["Python pipeline (offline)"]
+        P1["Ingest and QC<br/>stages 00 to 02"]
+        P2["Grid and statistics<br/>stages 03 to 05"]
+        P3["Context and states<br/>stages 06 to 07"]
+        P4["Export and guards<br/>stage 08"]
+    end
 
-## Quick Start (Web App)
+    subgraph BUNDLE["Static bundle"]
+        B1["manifest.json<br/>series.json<br/>scorecard.json"]
+        B2["cells.geojson<br/>context_features.geojson"]
+        B3["radar and optical PNGs"]
+    end
 
-Requires **Node.js >= 20** and `npm` (the deploy workflow uses Node 24).
+    subgraph WEB["Web app (browser)"]
+        W1["Zod contract check"]
+        W2["React + MapLibre UI"]
+        W3["Service worker<br/>offline cache"]
+    end
 
-```bash
-# 1. Install frontend dependencies
-npm install
-
-# 2. Generate the deterministic Contract 0.2 simulated bundle in public/bundle/
-npm run mock
-
-# 3. Validate the active bundle against the Zod schema & image guards
-npm run check-bundle
-
-# 4. Run unit, contract, reading-level, and i18n tests
-npm test
-
-# 5. Typecheck and build the static site for deployment
-npm run typecheck
-npm run build
-
-# 6. Start the local dev server (or preview the built dist/)
-npm run dev
-npm run preview
+    A1 & A2 & A3 & A4 & A5 & A6 --> P1 --> P2 --> P3 --> P4
+    P4 --> B1 & B2 & B3
+    B1 & B2 & B3 --> W1 --> W2
+    W2 <--> W3
+    WEB -->|"GitHub Actions"| GH["GitHub Pages"]
 ```
 
-Pushing to `main` builds and publishes the site to GitHub Pages ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)).
+Design rules that hold across the codebase:
+
+- **The browser never recomputes science.** Every number on screen is read from the bundle.
+- **One contract.** The bundle format is defined once in [`docs/data-contract.md`](docs/data-contract.md) and enforced by Zod schemas in [`src/contract/index.ts`](src/contract/index.ts). A bundle that fails validation is rejected before it reaches the UI.
+- **Simulated data is always labelled.** A bundle with `data_kind: "mock"` shows a "Simulated data" badge on every screen.
 
 ---
 
-## Python Pipeline Setup & Stages
+## Tech stack
 
-Requires **Python 3.11+**. Pinned dependencies live in [`pipeline/requirements.txt`](pipeline/requirements.txt):
+### Web application
+
+| Layer | Technology | Version | Role |
+| --- | --- | --- | --- |
+| UI framework | React | 19.3 | Component rendering and state |
+| Language | TypeScript | 7.0 | Static typing across app, scripts and tests |
+| Build tool | Vite | 8.3 | Dev server and production build |
+| Maps | MapLibre GL JS | 6.18 | Vector map, cell layers, raster overlays |
+| Charts | d3-scale, d3-shape | 4.0, 3.2 | Pulse-card time series and scales |
+| Validation | Zod | 4.6 | Runtime check of the data bundle |
+| Typography | IBM Plex Sans, Serif, Condensed | 5.3 | Self-hosted fonts (no external requests) |
+| Offline | Service Worker | n/a | Caches the app shell and bundle |
+| Testing | Vitest, tsx | 5.1, 4.23 | Unit, contract, i18n and reading-level tests |
+
+### Data pipeline
+
+| Area | Libraries |
+| --- | --- |
+| Arrays and tables | NumPy 2.5, pandas 3.0, SciPy 1.18, PyArrow 26 |
+| SAR cubes | xarray, Zarr 3.4, h5py, h5netcdf, fsspec, s3fs |
+| Raster | Rasterio 1.4, rioxarray 0.18 |
+| Vector and projection | GeoPandas 1.0, Shapely 2.0, pyproj 3.7, pyosmium 4.0 |
+| Data access | asf-search 8.1, earthaccess 0.14, Requests |
+| Machine learning | scikit-learn 1.9, MAPIE 1.6 (conformal sets), cleanlab 2.9 |
+| Rendering and config | Matplotlib, Pillow, PyYAML, python-dotenv |
+
+Pinned versions: [`pipeline/requirements.txt`](pipeline/requirements.txt) and [`package.json`](package.json).
+
+### Infrastructure
+
+| Concern | Choice |
+| --- | --- |
+| Hosting | GitHub Pages (static) |
+| CI/CD | GitHub Actions: `npm ci`, `npm test`, `npm run build`, deploy on push to `main` |
+| Secrets | `.env` (git-ignored): `EARTHDATA_TOKEN`, `FIRMS_MAP_KEY` |
+| Projection | WGS 84 for the app, UTM zone 49S (`EPSG:32749`) for all area and distance work |
+
+---
+
+## Processing pipeline
+
+Stages run in order. Each one reads the files written by the stage before it, and most have an offline `--self-test` that needs no data.
+
+```mermaid
+flowchart TD
+    S00["00_census<br/>find NISAR GCOV scenes, lock track and frame"] --> S01
+    S01["01_fetch<br/>stream HH, HV and mask into gcov_cube.zarr"] --> S02
+    S02["02_quality<br/>drop bad passes, render radar PNGs"] --> S03
+    S03["03_grid<br/>500 m grid: canals, peat, concessions, WorldCover"] --> S04
+    S04["04_stats<br/>cell means, reference differencing, noise floor"] --> S04B
+    S04B["04b / 04c<br/>radar land-cover model"] --> S05
+    S05["05_coherence<br/>InSAR coherence when pairs exist"] --> S05B
+    S05B["05b_soil_moisture<br/>NISAR SME2 cross-check"] --> S06
+    S06["06_context<br/>FIRMS fires, rainfall, smoke image"] --> S07
+    S07["07_states<br/>8-rule state classifier"] --> S07B
+    S07B["07b_fire_risk<br/>fire-risk hindcast"] --> SC
+    SC["canal_ranking + scorecard_tests"] --> S08
+    S08["08_export<br/>provenance guards, write bundle"]
+
+    classDef ingest fill:#1f4e79,stroke:#0b2545,color:#ffffff
+    classDef grid fill:#2e7d32,stroke:#1b5e20,color:#ffffff
+    classDef model fill:#6a1b9a,stroke:#4a148c,color:#ffffff
+    classDef out fill:#b45309,stroke:#7c2d12,color:#ffffff
+    class S00,S01,S02 ingest
+    class S03,S04,S05,S05B,S06 grid
+    class S04B,S07,S07B,SC model
+    class S08 out
+```
+
+| Stage | Output |
+| --- | --- |
+| [`00_census.py`](pipeline/00_census.py) | `data/census.csv`, `data/selected_scenes.json` |
+| [`01_fetch.py`](pipeline/01_fetch.py) | `data/gcov_cube.zarr` (marked `asf_live_stream` or `synthetic_dry_run`) |
+| [`02_quality.py`](pipeline/02_quality.py) | `data/quality_report.json`, `bundle/images/radar_*.png` |
+| [`03_grid.py`](pipeline/03_grid.py) | `data/grid_cells.parquet`, `data/grid_provenance.json`, `bundle/cells.geojson` |
+| [`04_stats.py`](pipeline/04_stats.py) | `data/cell_stats.parquet`, `data/noise_floor.json` |
+| [`04b_landclass_features.py`](pipeline/04b_landclass_features.py), [`04c_landclass.py`](pipeline/04c_landclass.py) | Per-cell radar features, conformal class sets, map-check flags |
+| [`05_coherence.py`](pipeline/05_coherence.py) | `data/coherence.parquet` (empty when no GUNW pairs exist) |
+| [`05b_soil_moisture.py`](pipeline/05b_soil_moisture.py) | `data/sme2_cells.parquet`, `data/sme2_report.json` |
+| [`06_context_tabular.py`](pipeline/06_context_tabular.py), [`06_context_visuals.py`](pipeline/06_context_visuals.py) | `data/fires.parquet`, `data/context_summary.json`, smoke image |
+| [`07_states.py`](pipeline/07_states.py) | `data/states.parquet` |
+| [`07b_fire_risk.py`](pipeline/07b_fire_risk.py) | Fire-risk hindcast table and test result |
+| [`canal_ranking.py`](pipeline/canal_ranking.py), [`scorecard_tests.py`](pipeline/scorecard_tests.py) | `data/canal_rankings.json`, `data/scorecard_tests.json` |
+| [`08_export.py`](pipeline/08_export.py) | The app bundle |
+
+All thresholds, the study box and output paths live in [`config.yaml`](config.yaml).
+
+### The wetness index
+
+For each cell, the index is the change in HH backscatter since the first pass, minus the same change over reference forest on mineral soil. Subtracting the reference removes changes that affect the whole scene, such as calibration or weather. Averaging is done in linear power before converting to decibels.
+
+```text
+D_t     = (HH_t - HH_0)_cell - (HH_t - HH_0)_reference
+sigma_t = 1.4826 x MAD(D_t over reference-forest cells)
+```
+
+A cell is only labelled as changing when its index moves further than the noise floor `sigma_t` of that pass.
+
+---
+
+## How a cell gets its state
+
+Rules are checked in order on every pass. The first rule that matches wins. Defaults: `change_k = 2`, `deep_k = 4`, `rain_return_mm = 50`.
+
+```mermaid
+flowchart TD
+    START(["Cell on pass t"]) --> R1{"Pass dropped, or under<br/>50% valid pixels?"}
+    R1 -->|yes| NODATA["1 · No data"]
+    R1 -->|no| R2{"FIRMS fire since<br/>last pass?"}
+    R2 -->|yes| R2B{"HV fell more than 2σ<br/>or coherence under 20?"}
+    R2B -->|yes| FIRER["2 · Fire, radar agrees"]
+    R2B -->|no| FIRES["3 · Fire, radar silent"]
+    R2 -->|no| R4{"Burned on an<br/>earlier pass?"}
+    R4 -->|yes| BURN["4 · Burned"]
+    R4 -->|no| R5{"Rain returned and index<br/>rose 2σ above its low?"}
+    R5 -->|yes| REWET["5 · Re-wetting"]
+    R5 -->|no| R6{"Index below -4σ?"}
+    R6 -->|yes| DEEP["6 · Deep drying"]
+    R6 -->|no| R7{"Index below -2σ?"}
+    R7 -->|yes| DRY["7 · Drying"]
+    R7 -->|no| STABLE["8 · Stable"]
+
+    classDef fire fill:#b91c1c,stroke:#7f1d1d,color:#ffffff
+    classDef dry fill:#b45309,stroke:#78350f,color:#ffffff
+    classDef wet fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef calm fill:#4b5563,stroke:#1f2937,color:#ffffff
+    class FIRER,FIRES,BURN fire
+    class DEEP,DRY dry
+    class REWET wet
+    class NODATA,STABLE calm
+```
+
+"Fire, radar silent" is a finding, not an error. Low-intensity ground fires can leave the canopy standing, so the radar may not respond even when a fire was detected.
+
+---
+
+## Study area and land classes
+
+The study box covers `113.75°E to 114.25°E, 2.25°S to 1.75°S`, part of the former Mega Rice Project area in Central Kalimantan. It is divided into a 500 m grid in UTM zone 49S (12,210 cells). Each cell is classified by six first-match rules using ESA WorldCover 2021, GFW peat and concession maps, and OpenStreetMap canals. Cells that match no rule (mostly mineral soil outside the peat dome) are dropped rather than given a catch-all class.
+
+```mermaid
+pie showData title Classified 500 m cells (8,250 of 12,210)
+    "Intact peat swamp forest" : 4326
+    "Drained peat" : 2037
+    "Reference forest" : 823
+    "Plantation on peat" : 805
+    "Settlement" : 259
+```
+
+| Priority | Class | Rule |
+| --- | --- | --- |
+| 1 | Settlement | Built-up share ≥ 10% |
+| 2 | Plantation | Concession share ≥ 50% |
+| 3 | Rewetted | Peat ≥ 50%, has canals, dam within 1 km |
+| 4 | Drained | Peat ≥ 50%, has canals or tree cover < 70% |
+| 5 | Reference forest | Inside the reference box, peat ≥ 50%, tree cover ≥ 70%, no canals |
+| 6 | Intact forest | Peat ≥ 50%, tree cover ≥ 70%, no canals |
+
+Source: `data/grid_cells.parquet` produced by `03_grid.py`. The grid draws on 4,070 OpenStreetMap waterway segments; 2,028 cells contain at least one canal or drain.
+
+---
+
+## Data sources
+
+### NASA
+
+| Dataset | Use |
+| --- | --- |
+| NISAR L2 GCOV (NASA-ISRO, via ASF DAAC) | Core signal: 12-day L-band HH and HV backscatter |
+| NASA FIRMS VIIRS 375 m | Active fire detections per cell and pass |
+| NASA GIBS VIIRS true colour | Smoke image on the first screen |
+| NISAR L2 SME2 (provisional) | Soil-moisture cross-check |
+| NISAR L2 GUNW | Coherence, when interferometric pairs exist |
+| MODIS MCD64A1 | Burned-area cross-check |
+
+### Other
+
+| Dataset | Use | Licence |
+| --- | --- | --- |
+| ESA WorldCover 10 m 2021 v200 | Tree cover and built-up share per cell | CC BY 4.0 |
+| Global Forest Watch: Indonesia peat lands, oil-palm and wood-fibre concessions | Peat and concession fractions | CC BY 4.0 |
+| OpenStreetMap | Canals, drains, ditches and rivers | ODbL 1.0 |
+| BRGM PRIMS | Canal-dam locations (none returned for this box) | BRGM portal terms |
+| Open-Meteo (ERA5 family) | Daily rainfall | CC BY 4.0 |
+| Copernicus Sentinel-1 | C-band direction check | Copernicus open licence |
+| Natural Earth | World outline on the Global peat screen | Public domain |
+
+Full citations and licence notes: [`docs/sources.md`](docs/sources.md).
+
+---
+
+## Getting started
+
+### Web app
+
+Requires Node.js 20 or newer (CI uses Node 24).
+
+```bash
+npm install
+npm run mock           # write a deterministic simulated bundle to public/bundle/
+npm run check-bundle   # validate the bundle with the app's own loader
+npm test               # unit, contract, i18n and reading-level tests
+npm run dev            # local dev server
+npm run build          # type-check and build to dist/
+```
+
+Every push to `main` runs the tests, builds the site and publishes it to GitHub Pages through [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+
+### Pipeline
+
+Requires Python 3.11 or newer and a NASA Earthdata account.
 
 ```bash
 python -m venv .venv
-# Activate your virtualenv, then install pinned packages:
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS / Linux
 pip install -r pipeline/requirements.txt
 ```
 
-Pipeline settings (bounding box, UTM cell size, `2σ / 3σ / 4σ` thresholds, `50 mm` rain-return threshold, noise floor limit `0.50 dB`, and output paths) are configured in [`config.yaml`](config.yaml).
+Create a `.env` file in the project root:
 
-### Stage Overview
-
-| Stage / Module | Responsibility |
-| --- | --- |
-| [`pipeline/00_census.py`](pipeline/00_census.py) | Query the ASF catalogue for `NISAR_L2_GCOV` scenes on a locked track, frame, direction, and mode (`2005`, `DH`). |
-| [`pipeline/01_fetch.py`](pipeline/01_fetch.py) | Stream/subset `HHHH`, `HVHV`, `mask`, and `numberOfLooks` layers into `data/gcov_cube.zarr`, marking the cube `asf_live_stream` or `synthetic_dry_run`. |
-| [`pipeline/02_quality.py`](pipeline/02_quality.py) | Scene quality gating, reference stability check, and valid-date filtering (`data/quality_report.json`, alias `data/qc_report.json`). |
-| [`pipeline/03_grid.py`](pipeline/03_grid.py) | Build the 500 m UTM 49S (`EPSG:32749`) grid from OSM waterways, GFW peat & concessions, BRGM PRIMS canal blocks when available (none found for this box yet, so no cell is classed "rewetted"), and ESA WorldCover 10 m. Reference cells are dense forest on mineral soil; if too few exist, `reference_soil` in `data/grid_provenance.json` says so and the export relabels them (`data/grid_cells.parquet`, `data/grid_provenance.json`). |
-| [`pipeline/04_stats.py`](pipeline/04_stats.py) | Linear-power spatial block averaging before dB conversion, forest-reference double differencing (`D_ct`), speckle error, and empirical MAD noise floor (`σ_t`). |
-| [`pipeline/04b_landclass_features.py`](pipeline/04b_landclass_features.py) | Per-cell radar features (seasonal statistics, HV texture, distance to river) for the land-cover model. |
-| [`pipeline/04c_landclass.py`](pipeline/04c_landclass.py) | Land-cover model: trained on map labels, gives each cell a conformal set of classes (empty = "radar can't tell"), flags cells whose 2021 map label looks out of date; a gate decides whether the export may use it. |
-| [`pipeline/05_coherence.py`](pipeline/05_coherence.py) | Experimental L-band InSAR coherence (`NISAR_L2_GUNW`) extension; remains empty when no valid pairs exist. |
-| [`pipeline/05b_soil_moisture.py`](pipeline/05b_soil_moisture.py) | Provisional `NISAR_L2_SME2` (200 m EASE-Grid 2.0) soil-moisture ingestion and quality/VWC masking (`data/sme2_cells.parquet`, `data/sme2_report.json`). |
-| [`pipeline/06_context_tabular.py`](pipeline/06_context_tabular.py) | NASA FIRMS VIIRS 375 m interval fire joins (including a 187.5 m adjacency buffer) and Open-Meteo ERA5 rainfall totals. |
-| [`pipeline/06_context_visuals.py`](pipeline/06_context_visuals.py) | NASA GIBS/Worldview true-colour optical imagery vs L-band SAR PNGs for the Smoke and radar swipe. |
-| [`pipeline/07_states.py`](pipeline/07_states.py) | Rule-based state classifier, first matching rule wins: no data, fire (radar agrees), fire (radar silent), burned, re-wetting, deep drying, drying, stable. |
-| [`pipeline/07b_fire_risk.py`](pipeline/07b_fire_risk.py) | Fire-risk hindcast (2026 season, one site): a logistic model scored against simple baselines; shown only if it beats them. It is not a forecast. |
-| [`pipeline/canal_ranking.py`](pipeline/canal_ranking.py) | Rank the top 20 drainage canals for canal blocking within a 1 km peat cell buffer (`--self-test` supported). |
-| [`pipeline/scorecard_tests.py`](pipeline/scorecard_tests.py) | Scientific self-checks (`reference_steady`, `split_half_null`, `fire_agreement`, `size_sensitivity`) and multi-sensor cross-checks (`soil_moisture_agrees`, `cband_same_direction`, `burned_matches_modis`). |
-| [`pipeline/08_export.py`](pipeline/08_export.py) | Enforce verification guards (refuses dry-run or unmarked cubes unless `--allow-unverified` is passed explicitly) and export the static bundle (`--self-test` supported). |
-
-Run module self-tests locally:
-
-```bash
-python pipeline/canal_ranking.py --self-test
-python pipeline/08_export.py --self-test
+```text
+EARTHDATA_TOKEN=your_token
+FIRMS_MAP_KEY=your_key
 ```
 
-Model details (features, labels, validation, gates): [`docs/models.md`](docs/models.md).
+Run the stages in order, then export:
+
+```bash
+python pipeline/00_census.py
+python pipeline/01_fetch.py
+python pipeline/02_quality.py
+python pipeline/03_grid.py
+# ... through 07b_fire_risk.py, canal_ranking.py and scorecard_tests.py
+python pipeline/08_export.py
+```
+
+Copy the exported bundle into `public/bundle/`, run `npm run check-bundle`, and confirm `manifest.json` reports `"data_kind": "nisar"` before deploying.
 
 ---
 
-## Regenerating Mock Data vs. Swapping in Real Data
+## Repository layout
 
-- **Simulated mock bundle (frontend development & rehearsal):**
-  ```bash
-  npm run mock
-  npm run check-bundle
-  ```
-  Generates deterministic Contract `0.2` files directly into `public/bundle/` with `manifest.data_kind: "mock"`, which shows the **"Simulated data"** / **"Data simulasi"** badge on every screen so simulated numbers are never mistaken for satellite observations.
-
-- **Verified real pipeline bundle:**
-  1. Ensure `.env` contains the Earthdata and FIRMS credentials (`EARTHDATA_TOKEN`, `FIRMS_MAP_KEY`) and real NISAR scenes are processed through stages `00`–`07b`, `canal_ranking.py` and `scorecard_tests.py`.
-  2. Export without `--allow-unverified`:
-     ```bash
-     python pipeline/08_export.py
-     ```
-  3. Copy the exported bundle directory (configured by `bundle_dir` in [`config.yaml`](config.yaml), default `bundle/`) into `public/bundle/` so Vite serves it.
-  4. Check the schema and confirm `manifest.data_kind` is `"nisar"` before deployment:
-     ```bash
-     npm run check-bundle
-     npm run build
-     ```
-
----
-
-## Data Contract & Documentation
-
-- **Contract specification:** [`docs/data-contract.md`](docs/data-contract.md). Contract `0.2` is additive over `0.1`: optional canal ids and canal rankings, the land model status, per-cell `cover_set` and `map_check`, and the fire-risk hindcast.
-- **Runtime Zod schemas:** [`src/contract/index.ts`](src/contract/index.ts)
-- **Scientific method & design notes:** [`docs/method.md`](docs/method.md)
-- **Models:** [`docs/models.md`](docs/models.md)
-- **Full datasets, licences & citations:** [`docs/sources.md`](docs/sources.md)
-- **Build log & provenance notes:** [`docs/LOG.md`](docs/LOG.md)
+```text
+NapasGambut/
+├── .github/workflows/   CI and GitHub Pages deployment
+├── config.yaml          Study box, grid size, thresholds, output paths
+├── pipeline/            Python stages 00 to 08, models, self-tests
+├── ml/                  Reference model runs on simulated tables
+├── data/                Intermediate pipeline outputs
+├── bundle/              Work bundle written by the pipeline
+├── public/
+│   ├── bundle/          Bundle served by the app
+│   └── sw.js            Offline service worker
+├── scripts/             Mock bundle generator and bundle checker
+├── src/
+│   ├── contract/        Zod schemas for the data bundle
+│   ├── data/            Bundle loader and selectors
+│   ├── screens/         The five app screens
+│   ├── components/      Shared UI (timeline, pulse chart, legend)
+│   ├── map/, layers/    MapLibre layers and colour ramps
+│   ├── i18n/            English and Indonesian strings
+│   └── state/           App store and URL hash state
+├── tests/               Vitest suites
+└── docs/                Method, data contract, models, sources, build log
+```
 
 ---
 
-## Manual Verification Checklist
+## Testing and quality gates
 
-Before final submission, verify these interactions in a clean Incognito/Private browser window:
+```mermaid
+flowchart LR
+    A["Pipeline stage"] --> B{"--self-test<br/>passes?"}
+    B -->|no| X["Fix before commit"]
+    B -->|yes| C{"08_export<br/>provenance guards"}
+    C -->|"stand-in data found"| M["Bundle labelled<br/>Simulated data"]
+    C -->|"all inputs real"| R["Bundle labelled<br/>NISAR"]
+    M & R --> D{"check-bundle<br/>Zod schemas"}
+    D -->|fail| X
+    D -->|pass| E["npm test + build<br/>in GitHub Actions"]
+    E --> F["GitHub Pages"]
+```
 
-1. **Keyboard navigation:** Tab through the top nav (`Smoke and radar`, `Season map`, `Scorecard`, `Method`, `Global peat`), the language button (`Bahasa Indonesia` / `English`), timeline pass controls, canal list items, and pulse-card `HH` / `HV` / `HH minus HV` buttons; confirm visible focus rings and `Enter`/`Space` activation.
-2. **Reduced motion:** Enable OS/browser `prefers-reduced-motion: reduce`; verify the reveal swipe, map camera transitions, and timeline scrubbing work without jarring animation.
-3. **Offline reload:** Visit every screen and scrub through dates once online, then switch browser DevTools Network to **Offline** and reload; verify cached bundle files, map controls, and all 5 screens render via [`public/sw.js`](public/sw.js).
-4. **Hollow "fire, radar silent" symbol:** Inspect cells in the "Fire, radar silent" state on the map and in the pulse card and confirm the hollow ring and its uncertainty note appear distinctly, not like a solid confirmed fire or a stable cell.
-5. **Mobile viewport (`375x812`):** Confirm tables scroll without horizontal page overflow, nav tabs fit, and all buttons keep a usable touch target size.
-6. **Clean bundle check:** Verify `npm run check-bundle` exits `0` with zero missing dates or malformed coordinates.
+`08_export.py` blocks a real export when any input is a stand-in:
+
+- the radar cube was not streamed live from ASF;
+- canals did not come from OpenStreetMap;
+- land classes or tree cover came from rules of thumb instead of a cited map;
+- coherence used a brightness proxy, or the smoke image is synthetic.
+
+`--allow-unverified` still writes a local test bundle, which the app labels as simulated.
+
+Self-tests that need no data files:
+
+```bash
+python pipeline/08_export.py --self-test
+python pipeline/canal_ranking.py --self-test
+python pipeline/04c_landclass.py --self-test
+python pipeline/07b_fire_risk.py --self-test
+```
 
 ---
 
-## Use of AI
+## Space Apps AI-Use Disclosure (Copy-Ready)
 
-AI coding assistants were used to speed up software work: React and MapLibre components, Zod schemas and tests, Python refactoring, documentation formatting, and first drafts of the Indonesian text, which a native speaker reviewed. The radar method, thresholds, provenance guards, citations and all outputs were specified and checked by the team against NASA and ASF documentation and peer-reviewed literature.
-
-The app uses two small machine-learning models: gradient-boosted trees with MAPIE conformal sets and cleanlab for land cover, and a logistic regression for the fire-risk hindcast. Their training labels and limits are described on the Method screen and in [`docs/models.md`](docs/models.md). No language model runs in the app, and no simulated number is presented as a satellite measurement.
+> **Use of Artificial Intelligence:** Generative AI coding assistants were used during development of Napas Gambut to accelerate software engineering boilerplate across the TypeScript/React/MapLibre frontend, Zod schema validation tests, bilingual (`EN`/`ID`) translation drafting (flagged for human review), Python data-pipeline refactoring, and documentation formatting. All physical SAR formulas (linear-power block averaging prior to dB conversion, forest-reference double differencing, empirical MAD noise floors), threshold parameters, data provenance guards (`--allow-unverified` gate and honest `Simulated data` labeling), scientific citations, and live/test outputs were specified, reviewed, and verified by the team against primary NASA/ASF documentation and peer-reviewed literature. No synthetic outputs are presented as real satellite measurements. The app uses two small machine-learning models (scikit-learn gradient-boosted trees with MAPIE conformal sets and cleanlab, and a logistic fire-risk hindcast); their training labels and limits are on the app's Method screen. No language model runs in the app.
 
 ---
 
-## Team Betelgeuse
+## Team
+
+**Team Betelgeuse**
 
 M. Rafli P. P. · Immenuel E. K. · Vicky S. B. · Rangga D. P. C. A. · M. Salman
 
-## Licence
+## License
 
-Released under the [MIT License](LICENSE). External datasets remain subject to their respective licences listed in [`docs/sources.md`](docs/sources.md) (including ESA WorldCover CC BY 4.0, Global Forest Watch CC BY 4.0, OpenStreetMap ODbL 1.0, and NASA Earthdata Open Data policies).
+Code is released under the [MIT License](LICENSE). External datasets keep their own licences, listed in [`docs/sources.md`](docs/sources.md): ESA WorldCover and Global Forest Watch (CC BY 4.0), OpenStreetMap (ODbL 1.0), and NASA Earthdata open data policy.
+
+NISAR is a joint mission of NASA and ISRO. This project is not affiliated with or endorsed by either agency.
