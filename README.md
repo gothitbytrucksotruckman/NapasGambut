@@ -174,15 +174,17 @@ Before final submission, verify these interactions in a clean Incognito/Private 
 
 ---
 
-## Space Apps AI-Use Disclosure (Copy-Ready)
+## Use of AI
 
-> **Use of Artificial Intelligence:** Generative AI coding assistants were used during development of Napas Gambut to accelerate software engineering boilerplate across the TypeScript/React/MapLibre frontend, Zod schema validation tests, bilingual (`EN`/`ID`) translation drafting (flagged for human review), Python data-pipeline refactoring, and documentation formatting. All physical SAR formulas (linear-power block averaging prior to dB conversion, forest-reference double differencing, empirical MAD noise floors), threshold parameters, data provenance guards (`--allow-unverified` gate and honest `Simulated data` labeling), scientific citations, and live/test outputs were specified, reviewed, and verified by the team against primary NASA/ASF documentation and peer-reviewed literature. No synthetic outputs are presented as real satellite measurements. The app uses two small machine-learning models (scikit-learn gradient-boosted trees with MAPIE conformal sets and cleanlab, and a logistic fire-risk hindcast); their training labels and limits are on the app's Method screen. No language model runs in the app.
+AI coding assistants were used to speed up software work: React and MapLibre components, Zod schemas and tests, Python refactoring, documentation formatting, and first drafts of the Indonesian text, which a native speaker reviewed. The radar method, thresholds, provenance guards, citations and all outputs were specified and checked by the team against NASA and ASF documentation and peer-reviewed literature.
+
+The app uses two small machine-learning models: gradient-boosted trees with MAPIE conformal sets and cleanlab for land cover, and a logistic regression for the fire-risk hindcast. Their training labels and limits are described on the Method screen and in [`docs/models.md`](docs/models.md). No language model runs in the app, and no simulated number is presented as a satellite measurement.
 
 ---
 
 ## Team Betelgeuse
 
-M. Rafli P. P. · Immenuel E. K. · Vicky S. P. · Rangga D. P. C. A. · M. Salman
+M. Rafli P. P. · Immenuel E. K. · Vicky S. B. · Rangga D. P. C. A. · M. Salman
 
 ## Licence
 
