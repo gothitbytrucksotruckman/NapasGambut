@@ -50,6 +50,7 @@ export const en = {
   'state.8': 'Stable',
 
   'lang.switch': 'Bahasa Indonesia',
+  'link.github': 'Source code on GitHub',
 
   // Pulse card (milestone 3)
   'pulse.title': 'Cell {id}',

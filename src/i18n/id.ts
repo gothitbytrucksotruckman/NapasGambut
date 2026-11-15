@@ -52,6 +52,7 @@ export const id: Record<Key, string> = {
   'state.8': 'Stabil',
 
   'lang.switch': 'English',
+  'link.github': 'Kode sumber di GitHub',
 
   // Pulse card (milestone 3)
   'pulse.title': 'Sel {id}',
