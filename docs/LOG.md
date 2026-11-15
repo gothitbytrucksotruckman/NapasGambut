@@ -264,3 +264,50 @@ Changed:
 Today's real outputs, run through the guard: fallback canals, heuristic classes, heuristic tree cover, coherence proxy. The export refuses, as intended.
 
 Order for the data team: (1) re-run 03 online and replace the heuristic classes with cited maps; (2) re-run 05 (null coherence), 06 (calendar, FIRMS `_SP`), 07; (3) `py pipeline/08_export.py`.
+
+## 2026-11-14 · Evidence check of the enhancement plan (docs only, no code changed)
+
+Three research workers (prior art, science, field fit) plus a hand re-check of four key claims. Updated the shared doc "Napas Gambut: Enhancement Architecture" (https://claude.ai/artifact/EoNvG9EuoLu48FGFv5DW1Q) and the local design doc (now Rev 3).
+
+Re-checked and confirmed: PRIMS shows Sentinel-1 C-band soil moisture every 2 weeks (FAO SEPAL); WorldCover's tree-cover class includes oil palm and swamp forest; Pantau Gambut found 70% of 77 checked canal blocks damaged (mostly Riau and Aceh, some broken on purpose by villagers); fire raises L-band HH by 3.7 to about 6 dB (Jaenicke et al.; a Kyushu PALSAR study).
+
+Plan changes: Track A needs a plantation map beyond WorldCover; new B5 marks burned cells on the HH and HV layers; C2 (soil moisture) is now optional; C3 is framed as a comparison of two bands; C4 (MODIS) is read as a lower bound; D1 is presented as "where to look first"; D3 frames the Peruvian site as a baseline watch. The coherence < 20 threshold is the team's own choice, with no published source.
+
+Novelty: not "radar peat moisture" (PRIMS already has it). Ours is L-band NISAR, change measured against the radar's own noise, honest blind spots, an explained history per cell, and public ranked actions.
+
+## 2026-11-14 · AI and ML enhancement research (docs only, no code changed)
+
+Four research workers (past global winners, ML feasibility, foundation models and AI-made maps, LLM fit) plus a hand re-check. New shared doc: "Napas Gambut: AI and ML Enhancement Plan" (https://claude.ai/artifact/QsQjfRzxdVd6v3n3PzESUY).
+
+Re-checked: submission closes Sun 15 Nov 2026, 23:59 local; the Descals 2019 oil-palm map is a CNN on Sentinel-1/2 at 10 m (Zenodo 4473715); JRC TMF v2025 runs through 2025; QUEÑARIS (2025 Local Impact) used the Gemini API in a supporting role and was tied to a real planting campaign.
+
+Decisions:
+- Build: an AI-made land map from existing products (oil-palm CNN + TMF; fills the Track A plantation gap).
+- Build: a fire-risk lift table with no model.
+- Build only if it beats baselines under time-forward plus spatial-block validation: a small L2 logistic fire-risk model.
+- No LLM in the app (it breaks the static and offline rules; no Indonesian on-device model fits a phone). LLM only as a disclosed translation aid. Offline LLM briefings with checked numbers come after the event.
+- Rejected: Prithvi fine-tuning, SAR foundation models, clustering, next-pass forecasting.
+
+## 2026-11-14 · Land-class model architecture (docs only, the team builds the model)
+
+Shared doc: "Napas Gambut: Land-Class Model Architecture" (https://claude.ai/artifact/FaRvVBiwqk3dKtzXTg9HPb). Research ran on three savvy-flow light workers; the Sonnet and Haiku overrides failed with "model not found".
+
+Design:
+- Model A (primary): gradient-boosted trees per 500 m cell on NISAR features: median HV and HH, HH minus HV, HV temporal variation, GLCM texture, distance to river.
+- Model B (alternative): a small U-Net on 20 m chips, pooled to cells.
+- Labels: fused from Descals 2019 (oil palm CNN), JRC TMF 2025, WorldCover 2021 and TreeMap, cleaned for purity, agreement and stability. Four cover classes, mapped to contract classes by rules (GFW peat map, PRIMS blocks).
+- Guardrail: no canal density and no HH drying statistics as features, so the hypothesis tests are not circular.
+
+Implementation: MAPIE conformal sets with abstention ("radar can't tell"), and cleanlab confident learning for "the map may be out of date here". Re-checked: MAPIE `SplitConformalClassifier` with `conformalize` and `predict_set`; `cleanlab.filter.find_label_issues`, which needs out-of-fold probabilities; GCOV has no off-diagonal terms for dual-pol, so H-alpha decomposition was rejected.
+
+## 2026-11-14 · Pitch deck draft (docs only)
+
+Shared doc: "Napas Gambut: Pitch Deck Draft" (https://claude.ai/artifact/LEUf5dCKBaygyFF6sugw1V). It fills the team's 7-slide template (PITCH_DECK.md, outside the repo) with on-slide text, visuals and scripts taken from the project.
+
+Template claims replaced because the project can't back them: 122,100 cells at 250 m (real: 12,210 at 500 m), GPM IMERG and WorldCover as sources, invented state names, Cohen's d 1.82 and p < 10^-24, a 12-day pre-ignition lead time, $150 vs $12,000 per hectare, ESP32 nodes, "zero-modification" scaling. Test results stay as [brackets] until stage 07 runs on real data.
+
+## 2026-11-15 · Mock training data for the land-class and fire-risk models
+
+Added `ml/mock/`: `generate_mock.py` (seeded, numpy only, self-checks at the end), `landclass_cells_mock.csv` (1,000 cells, Model A features plus weak labels), `fire_risk_mock.csv` (7,844 cell-pass rows for the L2 logistic fire-risk model) and a README with every column. The "prediction model" the team asked about is the fire-risk model already planned in the AI and ML Enhancement Plan, so no new research was needed.
+
+Simulated on the real grid (110 × 111 cells) and the real 10 kept passes. Forest radar levels come from the real reference-forest medians (HH −8.0, HV −15.0 dB, σ 0.12 dB); other classes are offset per the CEOS Layman's SAR guide v3.0 and Torbick et al. 2016. 7.7% of map labels are wrong, including patches that changed after the maps. A scratch check gave Model A 0.87 block-CV accuracy against the map labels (0.92 against the truth). The logistic model scored PR-AUC 0.15, against 0.14 for the drying-rank baseline. Mock-only columns end in `_mock` and must never be features.
