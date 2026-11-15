@@ -6,7 +6,9 @@ Napas Gambut is a peatland monitor for Central Kalimantan, Indonesia. It reads N
 
 Built by **Team Betelgeuse** for the NASA Space Apps Challenge 2026, challenge *Dancing with the SARs*.
 
-[**Live app**](https://gothitbytrucksotruckman.github.io/NapasGambut/) · [Method](docs/method.md) · [Data contract](docs/data-contract.md) · [Models](docs/models.md) · [Sources](docs/sources.md)
+### 🌐 [**Open the live app → peats-breath.pages.dev**](https://peats-breath.pages.dev)
+
+[Live app](https://peats-breath.pages.dev) · [GitHub Pages mirror](https://gothitbytrucksotruckman.github.io/NapasGambut/) · [Method](docs/method.md) · [Data contract](docs/data-contract.md) · [Models](docs/models.md) · [Sources](docs/sources.md)
 
 ![React](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-7.0-3178C6?logo=typescript&logoColor=white)
@@ -62,7 +64,7 @@ The app is bilingual (English and Bahasa Indonesia), keyboard accessible, respec
 
 | Component | Status |
 | --- | --- |
-| Web app (5 screens, EN/ID, offline) | Live on GitHub Pages |
+| Web app (5 screens, EN/ID, offline) | Live at [peats-breath.pages.dev](https://peats-breath.pages.dev) and on GitHub Pages |
 | Data shown in the live app | Simulated season, labelled "Simulated data" on every screen |
 | NISAR GCOV passes streamed from ASF | 2 of 10 (22 Jun and 4 Jul 2026) |
 | 500 m analysis grid (OSM canals, GFW peat and concessions, ESA WorldCover) | Built from real data |
