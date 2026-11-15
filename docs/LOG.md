@@ -324,3 +324,41 @@ Cause, reproduced locally with a hand-written LAC: the calibration cells had bee
 Fix: hold out the calibration blocks first and leave them uncleaned; clean only the training part. Locally this gave q = 0.17, coverage 0.91, and 99 of 100 sets with a single class. APS was tried and rejected: q = 1.0, and most sets held all four classes.
 
 Rerun with the fixed Cell 6 (Colab): accuracy 0.92 on the 100 hand-labelled cells, coverage 0.89 (target 0.90, within the ±0.03 sampling error for 100 cells); sets: 3 empty, 97 single-class. Model A pipeline is validated on mock data; it waits for the real cell table.
+
+## 2026-11-15 · Pitch deck v2 and portal plan; most of the radar cube found synthetic (docs only, no code changed)
+
+Shared doc: "Napas Gambut: Pitch Deck and Portal Plan v2" (https://claude.ai/artifact/3cNPUB1bexpZmExWvNL7fA). It contains:
+- a new 7-slide structure;
+- paste-ready text for every portal field;
+- visual asset steps;
+- a timed plan for today's 23:59 deadline, with Track A (real season) and Track B (honest fallback).
+
+The winners' pattern comes from three 2025 Global Winner portal pages (QUEÑARIS, Resonant Exoplanets, Twisters).
+
+**Correction to earlier entries (2026-11-14 QC and mentor review, deck v1, architecture doc Rev 2):** the radar data on disk is not real for 8 of 10 dates.
+- **Only 2 real scenes.** `bundle/images/radar_2026-06-22.png` and `radar_2026-07-04.png` are real NISAR scenes, showing rivers, plantation grids and a swath edge.
+- **The other 8 pictures are noise.** They show no spatial structure: neighbouring-pixel correlation is about 0.00 at 10 px, against 0.91–0.94 for the real scenes.
+- **The whole cube is dry-run output.** `data/quality_report.json` gives every date, including 22 Jun, a median HH of −8.695 dB and 100% valid pixels. That is the exact median of `01_fetch.py`'s `_generate_dry_run_scene` noise (uniform 0.02–0.25 linear). So `gcov_cube.zarr` is dry-run output.
+- **The noise floor is not usable.** σ 0.11–0.12 dB from 1,368 reference cells was computed from the synthetic cube and the old rule-of-thumb grid.
+
+Stage 03 was rerun this morning with real OSM canals, ESA WorldCover 2021 and GFW peat and concessions. Stages 01 (live), 02 and 04–08 still need to run on real data.
+
+## 2026-11-15 · Fire-risk model, first Colab run (mock data)
+
+Run by a teammate on `fire_risk_mock.csv`. The outputs are in `ml/Firerisk/`. I recomputed PR-AUC from the hindcast CSV and got the same 0.145.
+
+- **Model choice:** best C was 0.3 (CV PR-AUC 0.078). My local run picked C = 0.03, because the CV scores are almost tied with only 42 training fires.
+- **Scores on the locked test:**
+
+  | | PR-AUC | Top-10% capture | Note |
+  | --- | --- | --- | --- |
+  | Model | 0.145 | 0.365 | Brier 0.0366, against 0.0391 for always predicting the training rate |
+  | B3 (best baseline) | 0.142 | 0.311 | |
+  | B2 (drying rank) | 0.139 | 0.311 | |
+  | B1 | 0.047 | | |
+
+- **Bar not passed:** the model's lower bound is 0.103, below B3's 0.142. As the plan says, the app shows only the lift table: fire rate 11.9% in the driest fifth of cells, 0% in the wettest.
+- **Coefficient signs:**
+  - Drier means more risk (−1.12), and closer to an earlier fire means more risk (−0.43). Both are as expected.
+  - `hv_index_change_db` is +0.37. That comes from the model using the level and the change together, so it effectively averages the last two passes (correlation 0.39). It isn't a red flag.
+  - `rain_interval_mm` is +0.17 here and −0.12 in my local run, so its sign is unstable. It is regional, nearly constant across cells within a pass, so it mostly picks up timing and tile location. Don't interpret it.
