@@ -59,7 +59,7 @@ export function PulseCard() {
   const f1 = (v: number | null) => (v === null ? '' : v.toFixed(1));
   const rain3d = (i: number) => {
     const v = context.rain_3day_mm[i];
-    return v === null || v === undefined ? '' : `${v} mm`;
+    return v === null || v === undefined ? '' : String(v);
   };
 
   return (
