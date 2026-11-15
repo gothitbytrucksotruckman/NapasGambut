@@ -383,3 +383,22 @@ M1, new: `pipeline/04b_landclass_features.py`. Writes `data/landclass_features.c
 Verification: `py pipeline/04b_landclass_features.py --self-test` passes (36 synthetic cells: column names match the mock CSV, GLCM equals a brute-force count, a constant cell gives contrast 0 and homogeneity 1, the dropped date and masked pixels change nothing, known HV level, CV and river distance recovered) · `npm run typecheck` clean · `npm test` 13 files, 96 tests passed · `npm run build` ok · `npm run check-bundle` ok on the mock bundle.
 
 Not verified: the real run. This machine has no xarray, numcodecs, pyproj or parquet engine, and the cube on disk is dry-run output, so features computed from it now would be meaningless.
+
+## 2026-11-15 · M2: land-class stage (DONE, awaiting user commit)
+
+User had committed M1 (`9e161da`). Installed with the user's approval: MAPIE 1.6.0 and cleanlab 2.9.0 (scikit-learn stays 1.9.1). Calls checked in the installed source: `SplitConformalClassifier(estimator, confidence_level, conformity_score, prefit)`, `.conformalize(X, y)`, `.predict_set(X)` → (labels, sets of shape n × classes × levels), set columns in `estimator.classes_` order (`_get_classes_info`); `cleanlab.filter.find_label_issues(labels, pred_probs, ...)`; `HistGradientBoostingClassifier(class_weight="balanced")`. MAPIE accepts NaN features with a prefit HGB model (checked).
+
+New: `pipeline/04c_landclass.py`.
+- Weak labels from stage 03's map shares: plantation if concession share ≥ 0.5, else the largest of forest, built, degraded; purity = that share; maps agreeing out of 2.
+- Whole 5 km blocks split first, from all cells: 20% calibration, 20% check, 60% training. Only training cells are cleaned (purity ≥ 0.8, both maps agree).
+- Out-of-fold probabilities for every cell (GroupKFold 5 by block); cleanlab flags on them, kept where the set has one class (`map_check`).
+- LAC sets at 90% from MAPIE, calibrated on all calibration cells against map labels.
+- Gate: block-CV accuracy ≥ 0.75, check coverage ≥ 0.87, ≥ 20 clean training cells per class; else `not_used` with the failing numbers.
+- Cover → contract class with stage 03's rules, only where the set has one class; reference forest never changes.
+- Writes `data/landclass.csv`, `data/landclass_report.json`, and `class_source` + `landclass` in `data/grid_provenance.json` (a failed run restores the map source).
+
+Ruling (user chose option A): calibrate on all calibration cells against map labels, so "90%" means agreement with the 2021 maps. With map labels about 8% wrong, the LAC threshold sits near 1, so sets of two or more classes are common and empty sets ("radar can't tell") are rare. Colab's 18 empty / 982 single-class sets / 114 flags could not be reproduced this way: a probe gave a threshold of 0.51 to 0.999 against map labels and 0.19 to 0.48 against the simulated truth (Colab: 0.17), so Colab's calibration labels were probably cleaner than the maps. Those counts are no longer self-test targets.
+
+Verification: `py pipeline/04c_landclass.py --self-test` passes on `ml/mock/landclass_cells_mock.csv` (simulated): block-CV accuracy 0.888 (n 428; Colab 0.859), hand-label accuracy 0.89 and coverage 0.98 (n 100; Colab 0.92 / 0.89), check coverage 0.912 (n 193), sets 0 empty / 715 single, 53 map-check flags, same top class as Colab on 93.7% of cells; shuffled labels give `not_used`; calibrating without the cleanlab-flagged cells drops check coverage to 0.772 (the known bug; lower on all 9 seeds tried). Weak-label, rule and provenance functions tested on hand rows. `04b` self-test still passes · `npm run typecheck` clean · `npm test` 13 files, 96 tests passed · `npm run build` ok · `npm run check-bundle` ok.
+
+Not verified: the real run (no parquet engine here; `main()` was run once with a stubbed grid by the worker). On the mock table the gate depends on the split: 2 of 6 seeds gave `not_used` (25 calibration blocks); the real grid gives about 1,650 calibration cells.
