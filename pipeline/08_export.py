@@ -59,6 +59,18 @@ CLASS_LABELS = [
     ("reference_forest", "Reference forest (mineral soil)", "Hutan acuan (tanah mineral)"),
     ("settlement", "Settlement", "Permukiman"),
 ]
+REFERENCE_FALLBACK_LABELS = {
+    "mixed": ("Reference forest (mostly mineral soil, some peat)", "Hutan acuan (sebagian besar tanah mineral, sebagian gambut)"),  # REVIEW
+    "peat_fallback": ("Reference forest (peat; too little forest on mineral soil)", "Hutan acuan (gambut; hutan di tanah mineral terlalu sedikit)"),  # REVIEW
+}
+
+
+def reference_labels(labels, prov):
+    """Keep the 'mineral soil' label honest: 03_grid.py records which soil the reference cells are on."""
+    alt = REFERENCE_FALLBACK_LABELS.get(prov.get("reference_soil"))
+    return [(i, *alt) if i == "reference_forest" and alt else (i, e, l) for i, e, l in labels]
+
+
 NO_DATA, FIRE_RADAR, FIRE_SILENT, REWETTING = 1, 2, 3, 5
 LANDCLASS_VERSION = "nisar_landclass_v1"  # 04c_landclass.py VERSION
 
@@ -518,7 +530,7 @@ def build_bundle(inp: dict, data_kind: str, generated_at: str) -> dict[str, byte
             "deep_k": float(th["deep_k"]),
             "rain_return_mm": float(cfg["rain_return_mm"]),
         },
-        "classes": [{"id": i, "label_en": e, "label_id": l} for i, e, l in CLASS_LABELS],
+        "classes": [{"id": i, "label_en": e, "label_id": l} for i, e, l in reference_labels(CLASS_LABELS, prov)],
         "land_model": land_model,
         "states": [{"code": c, "key": k, "label_en": e, "label_id": l} for c, k, e, l in STATE_LABELS],
         "images": {
