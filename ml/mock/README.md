@@ -40,6 +40,8 @@ Both tables share `cell_id` and `block_id`, so they join. The fire table has mor
 
 That is close to the result the plan warns about: the model barely beats the drying-rank baseline. The real data may do the same.
 
+**In the pipeline:** both models now run as pipeline stages (`pipeline/04b_landclass_features.py`, `pipeline/04c_landclass.py`, `pipeline/07b_fire_risk.py`; see `docs/models.md`). Their `--self-test` runs on these two tables and compares with the team's Colab outputs in `ml/Lancdclass/` and `ml/Firerisk/`. Those outputs and the `.joblib` files were made on simulated data with another scikit-learn version; the pipeline retrains instead of loading them.
+
 ## `landclass_cells_mock.csv`
 
 | Column | Meaning |

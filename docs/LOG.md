@@ -455,3 +455,15 @@ New `src/data/models.ts` (display views only, no science): `coverView`, `fireRis
 Verification: `npm run typecheck` clean · `npm test` 14 files, 115 tests passed (9 new in `tests/models.test.ts`: every cover case, map check, simulated flag, 0.1 cell and not-used model give no row, fire view on the real mock scorecard, no "probability" or bare "forecast" in English strings) · `npm run build` ok · `npm run check-bundle` ok. Real app on the Vite dev server, in-app browser: map-check cell r001c027 shows "Forest (simulated)" and the flag note; r000c043 shows "Radar can't tell (simulated)" with its symbol; r000c007 shows "One of: Forest, Cleared or degraded land (simulated)"; Scorecard shows the not-run sentence and the five-row lift table (5.6% down to 0.6%); Method shows both model sections and "Penggunaan AI" in Indonesian; no console errors; no horizontal overflow at 375 px on Scorecard, Method and the pulse card.
 
 Not verified: the passed and not-passed sentences and the "used" Method lines in the browser (the mock bundle is simulated and not_run; they are covered by the helper tests and type checks only); a native speaker has not checked the new Indonesian (all marked `// REVIEW`). Added `.claude/launch.json` (dev server entry for the in-app browser preview).
+
+## 2026-11-15 · M6: model docs (DONE, awaiting user commit)
+
+User had committed M5 (`0e38877`).
+
+- New `docs/models.md`: the two models for the data team: stage order and commands, the three Python packages with pinned versions (scikit-learn 1.9.1, MAPIE 1.6.0, cleanlab 2.9.0), features, labels, validation, the calibration ruling (90% = agreement with the 2021 maps), the gates, the hindcast bar and wording, the export guards, and the note that every reference number comes from simulated tables. The repo has no README.md yet (the user writes it), so this is the section to link or paste.
+- `docs/method.md`: "Two models and their limits" and "Use of AI", the same English text as the Method screen.
+- `ml/mock/README.md`: pointer to the pipeline stages and why the Colab `.joblib` files are not loaded.
+
+Verification: self-tests pass for 04b, 04c, 07b, 05_coherence, 07_states (14/14) and 08_export (with the app loader) · `npm run typecheck` clean · `npm test` 14 files, 115 tests passed · `npm run build` ok · `npm run check-bundle` ok (data 3.36 MB, images 5.51 MB) · new docs contain no "probability", "measured" or bare "forecast" claim about a result.
+
+State of the ML work (M0 to M6): code complete and checked offline on simulated data. Not done, and needs the real environment: run stages 01 (live), 02, 04, 04b, 04c, 05, 06, 07, 07b, 08 on real data; until then the export refuses to write a real bundle and the app keeps the "Simulated data" badge.

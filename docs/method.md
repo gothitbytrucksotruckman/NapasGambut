@@ -41,6 +41,38 @@ Each pass, the rules are checked in this order. The first one that fits wins. Si
 - Low-intensity fires that smoulder under the surface can leave the canopy standing. The radar may stay silent; satellite fire detections still catch many of them.
 - One pass every 12 days can miss a fire that starts and ends between passes.
 
+## Two models and their limits
+
+Shown when the bundle carries model output (data contract 0.2). Details for the data team are in `docs/models.md`.
+
+### Land cover from radar
+
+A gradient-boosted tree model reads radar brightness and texture in each cell: HH, HV, how HV varies over the season, and how it varies inside the cell. It sorts cells into four kinds of cover: forest, cleared or degraded land, plantation and built-up.
+
+It learned from the 2021 maps (ESA WorldCover and GFW concessions). Canal density and drying are deliberately not inputs, so the canal and drying checks stay fair.
+
+Each cell gets the set of covers the radar cannot rule out. On held-out 5 km blocks, the set contains the map's class about 90% of the time. That figure means agreement with the 2021 maps, not with the ground. Peat and canals still come from maps; radar cannot see peat soil.
+
+When the model passes its checks, the land types on the map come from it, and the screen prints the share checked on held-out blocks beside the 90% target. Otherwise the land types come from the maps, and the screen says why.
+
+Cells where the radar confidently disagrees with the older map are flagged as worth checking on the ground. Many will be mixed cells, not real change.
+
+### Fire-risk hindcast
+
+A small logistic model ranks cells by fire risk for the time until the next pass. It uses only what was known at the pass: the HV radar index and its change, canal density, distance to an earlier fire, interval length and land cover.
+
+It is tested on the last two passes, which it never saw, against three simple rules, with 95% intervals from resampling 5 km blocks. It is shown only if its lower bound beats the best rule; otherwise the app shows the table and says so.
+
+One season, one site, few fires: a hindcast, not a forecast.
+
+## Use of AI
+
+The land classes and the fire-risk hindcast use machine learning (scikit-learn, MAPIE conformal sets, cleanlab).
+
+No language model runs in the app. Every sentence about a cell comes from fixed templates.
+
+AI coding assistants helped write the software and the Indonesian text, which a native speaker reviews.
+
 ## What NISAR could do next
 
 - A full-year record, so the dry season can be compared with the wet season that refills the peat.
