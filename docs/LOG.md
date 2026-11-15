@@ -311,3 +311,16 @@ Template claims replaced because the project can't back them: 122,100 cells at 2
 Added `ml/mock/`: `generate_mock.py` (seeded, numpy only, self-checks at the end), `landclass_cells_mock.csv` (1,000 cells, Model A features plus weak labels), `fire_risk_mock.csv` (7,844 cell-pass rows for the L2 logistic fire-risk model) and a README with every column. The "prediction model" the team asked about is the fire-risk model already planned in the AI and ML Enhancement Plan, so no new research was needed.
 
 Simulated on the real grid (110 × 111 cells) and the real 10 kept passes. Forest radar levels come from the real reference-forest medians (HH −8.0, HV −15.0 dB, σ 0.12 dB); other classes are offset per the CEOS Layman's SAR guide v3.0 and Torbick et al. 2016. 7.7% of map labels are wrong, including patches that changed after the maps. A scratch check gave Model A 0.87 block-CV accuracy against the map labels (0.92 against the truth). The logistic model scored PR-AUC 0.15, against 0.14 for the drying-rank baseline. Mock-only columns end in `_mock` and must never be features.
+
+## 2026-11-15 · Model A first Colab run (mock data) and a conformal fix
+
+Team results on `landclass_cells_mock.csv`:
+- Block-CV accuracy: 0.859 against map labels, 0.914 against the simulated truth. Plantation F1 is 0.66.
+- cleanlab: flagged 114 cells, precision 0.54, recall 0.92, and caught 38 of 43 out-of-date labels.
+- Hand-label check: accuracy 0.92, but conformal coverage only 0.82 (target 0.90). Sets were 13 empty and 87 single-class.
+
+Cause, reproduced locally with a hand-written LAC: the calibration cells had been filtered with the model's own out-of-fold disagreements (cleanlab flags). That leaves only cells the model already finds easy, so the threshold collapsed (q = 0.001) and coverage fell (0.86 locally).
+
+Fix: hold out the calibration blocks first and leave them uncleaned; clean only the training part. Locally this gave q = 0.17, coverage 0.91, and 99 of 100 sets with a single class. APS was tried and rejected: q = 1.0, and most sets held all four classes.
+
+Rerun with the fixed Cell 6 (Colab): accuracy 0.92 on the 100 hand-labelled cells, coverage 0.89 (target 0.90, within the ±0.03 sampling error for 100 cells); sets: 3 empty, 97 single-class. Model A pipeline is validated on mock data; it waits for the real cell table.
