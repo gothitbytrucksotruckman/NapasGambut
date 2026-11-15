@@ -139,8 +139,8 @@ export function generateBundle(seed: number): Map<string, Buffer> {
         role_id: 'Sumber deteksi api yang direncanakan. Jumlah api di sini adalah simulasi.', // REVIEW
       },
       {
-        name: 'CHIRPS rainfall',
-        url: 'https://www.chc.ucsb.edu/data/chirps',
+        name: 'Open-Meteo historical weather archive',
+        url: 'https://open-meteo.com/en/docs/historical-weather-api',
         role_en: 'Planned rainfall source. Rain values here are simulated.',
         role_id: 'Sumber curah hujan yang direncanakan. Nilai hujan di sini adalah simulasi.', // REVIEW
       },
