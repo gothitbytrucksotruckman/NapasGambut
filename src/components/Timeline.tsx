@@ -1,3 +1,4 @@
+import { scaleLinear } from 'd3-scale';
 import { useEffect, type KeyboardEvent } from 'react';
 import { droppedReason, isDropped } from '../data/selectors';
 import { formatDate, t } from '../i18n';
@@ -21,6 +22,23 @@ export function Timeline() {
   const i = state.dateIndex;
   const dropped = dates.map((_, k) => isDropped(bundle, k));
   const lang = state.lang;
+  const rain3d = bundle.context.rain_3day_mm;
+  const fires = bundle.context.fires_region;
+  const fireMax = Math.max(1, ...fires);
+  const fireH = 16;
+  const yFire = scaleLinear().domain([0, fireMax]).range([0, fireH - 2]);
+
+  const tipFor = (k: number): string | undefined => {
+    const parts: string[] = [];
+    const r3 = rain3d[k];
+    if (r3 !== null && r3 !== undefined) parts.push(`${r3} mm`);
+    if (dropped[k]) {
+      const reason = droppedReason(bundle, k, lang);
+      if (reason) parts.push(reason);
+    }
+    return parts.length ? parts.join(' · ') : undefined;
+  };
+
   const valueText = `${formatDate(dates[i], lang)}, ${t(lang, 'timeline.pass', { i: i + 1, n })}${dropped[i] ? `. ${t(lang, 'timeline.dropped')}` : ''}`;
 
   // Space toggles play anywhere on the map screen, unless focus is on a control that Space itself activates.
@@ -70,12 +88,18 @@ export function Timeline() {
         <div className="timeline__readout">
           <span className="timeline__date">{formatDate(dates[i], lang)}</span>
           <span className="timeline__pass num">{t(lang, 'timeline.pass', { i: i + 1, n })}</span>
+          {rain3d[i] !== null && rain3d[i] !== undefined && (
+            <span className="timeline__rain num" title={t(lang, 'timeline.rain3d', { mm: rain3d[i] })}>
+              {rain3d[i]} mm
+            </span>
+          )}
           {dropped[i] && <span className="timeline__droptag">{t(lang, 'timeline.dropped')}</span>}
         </div>
         <div
           className="timeline__slider"
           role="slider"
           tabIndex={0}
+          title={tipFor(i)}
           aria-label={t(lang, 'timeline.label')}
           aria-valuemin={1}
           aria-valuemax={n}
@@ -87,9 +111,34 @@ export function Timeline() {
           onPointerMove={(e) => { if (e.buttons) pick(e.clientX, e.currentTarget); }}
         >
           <PassRuler dates={dates} dropped={dropped} current={i} height={30} />
+          <svg
+            className="timeline__fires"
+            width="100%"
+            height={fireH}
+            viewBox={`0 0 100 ${fireH}`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            {fires.map((f, k) => {
+              const bh = f > 0 ? Math.max(1, yFire(f)) : 0;
+              const cx = ((k + 0.5) / Math.max(1, fires.length)) * 100;
+              const bw = Math.max(1.5, 55 / Math.max(1, fires.length));
+              return (
+                <rect
+                  key={dates[k] ?? k}
+                  x={cx - bw / 2}
+                  y={fireH - bh}
+                  width={bw}
+                  height={bh}
+                  fill="var(--s-fire-radar, #d95f02)"
+                  opacity={k === i ? 0.95 : 0.55}
+                />
+              );
+            })}
+          </svg>
           <div className="timeline__labels" aria-hidden="true">
             {dates.map((d, k) => (
-              <span key={d} className={k === i ? 'is-current' : undefined} title={dropped[k] ? droppedReason(bundle, k, lang) ?? undefined : undefined}>
+              <span key={d} className={k === i ? 'is-current' : undefined} title={tipFor(k)}>
                 {k % 2 === 0 || k === i ? formatDate(d, lang, 'short') : ''}
               </span>
             ))}

@@ -1,6 +1,7 @@
 // App state (PRD 7.2): one reducer, URL hash kept in sync for shareable views.
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 import { BundleError, loadBundle, type Bundle } from '../data/load';
+import { hasCoherence } from '../data/selectors';
 import { type LayerId, type Lang, parseHash, type Screen, toHash, type View } from './hash';
 
 export type Basemap = 'osm' | 'none';
@@ -22,7 +23,7 @@ type Action =
   | { type: 'setLang'; lang: Lang }
   | { type: 'setBasemap'; basemap: Basemap };
 
-function reducer(n: number) {
+function reducer(n: number, allowCoh = true) {
   const clamp = (i: number) => Math.max(0, Math.min(n - 1, i));
   return (s: AppState, a: Action): AppState => {
     switch (a.type) {
@@ -31,7 +32,7 @@ function reducer(n: number) {
       case 'setDate': return { ...s, dateIndex: clamp(a.index) };
       case 'step': return { ...s, dateIndex: clamp(s.dateIndex + a.delta), playing: false };
       case 'select': return { ...s, selectedCell: a.cell };
-      case 'setLayer': return { ...s, layer: a.layer };
+      case 'setLayer': return { ...s, layer: a.layer === 'coh' && !allowCoh ? 'state' : a.layer };
       // Pressing play on the last pass restarts from the first.
       case 'togglePlay': return s.playing ? { ...s, playing: false } : { ...s, playing: true, dateIndex: s.dateIndex >= n - 1 ? 0 : s.dateIndex };
       case 'stop': return { ...s, playing: false };
@@ -53,8 +54,9 @@ export function useApp(): Ctx {
 const PLAY_MS = 1200;
 
 export function AppProvider({ bundle, children }: { bundle: Bundle; children: ReactNode }) {
-  const ctx = { dates: bundle.manifest.dates, hasCell: (id: string) => bundle.idx.cell.has(id) };
-  const reduce = useMemo(() => reducer(bundle.manifest.dates.length), [bundle]);
+  const allowCoh = useMemo(() => hasCoherence(bundle), [bundle]);
+  const ctx = { dates: bundle.manifest.dates, hasCell: (id: string) => bundle.idx.cell.has(id), hasCoherence: allowCoh };
+  const reduce = useMemo(() => reducer(bundle.manifest.dates.length, allowCoh), [bundle, allowCoh]);
   const [state, dispatch] = useReducer(reduce, undefined, () => ({
     ...parseHash(location.hash, ctx),
     playing: false,
@@ -84,7 +86,7 @@ export function AppProvider({ bundle, children }: { bundle: Bundle; children: Re
       removeEventListener('popstate', onHash);
       removeEventListener('hashchange', onHash);
     };
-  }, [bundle]);
+  }, [bundle, allowCoh]);
 
   useEffect(() => {
     document.documentElement.lang = state.lang;

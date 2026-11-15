@@ -93,6 +93,9 @@ export const id: Record<Key, string> = {
   'pulse.th.hv': 'HV dB',
   'pulse.th.coh': 'Koherensi', // REVIEW
   'pulse.th.rain': 'Hujan mm',
+  'pulse.th.rain3d': 'Hujan 3 hari mm', // REVIEW
+  'pulse.noCoherence': 'Tidak ada dalam paket data ini', // REVIEW
+  'timeline.rain3d': 'Hujan 3 hari: {mm} mm', // REVIEW
   'pulse.th.fire': 'Api',
   'pulse.sketch.hh': 'Sketsa: gelombang radar mengenai tanah basah dan memantul lurus kembali.', // REVIEW
   'pulse.sketch.hv': 'Sketsa: gelombang radar tersebar di antara daun dan ranting lalu kembali terpuntir.', // REVIEW

@@ -1,0 +1,35 @@
+{
+  "canal_source": "osm_overpass",
+  "peat_source": "gfw_indonesia_peat_lands",
+  "concession_source": "gfw_indonesia_oil_palm_and_wood_fiber_concessions",
+  "dam_source": null,
+  "class_source": "esa_worldcover_2021_v200_and_gfw_peat_concessions",
+  "tree_cover_source": "esa_worldcover_10m_2021_v200",
+  "license": "CC BY 4.0",
+  "dropped_unmatched_cells": 3960,
+  "sources": [
+    {
+      "name": "ESA WorldCover 10 m 2021 v200",
+      "url": "https://esa-worldcover.org/en",
+      "s3_uri": "s3://esa-worldcover/v200/2021/map",
+      "license": "CC BY 4.0",
+      "citation": "\u00a9 ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium",
+      "role_en": "10 m tree cover (class 10) and built-up share (class 50) aggregated via O(N) numpy.bincount per 500 m cell.",
+      "role_id": "Tutupan pohon 10 m (kelas 10) dan proporsi terbangun (kelas 50) diagregasi per sel 500 m."
+    },
+    {
+      "name": "Global Forest Watch (WRI) \u2014 Indonesia Peat Lands & Concessions",
+      "url": "https://www.globalforestwatch.org/",
+      "license": "CC BY 4.0",
+      "role_en": "Indonesia peatland boundaries and oil-palm/wood-fibre concession polygons in EPSG:32749.",
+      "role_id": "Batas lahan gambut dan poligon konsesi kelapa sawit/hutan tanaman Indonesia dalam EPSG:32749."
+    },
+    {
+      "name": "OpenStreetMap Contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "license": "ODbL 1.0",
+      "role_en": "Drainage canals, ditches, and rivers (waterway=canal|drain|ditch|river) in EPSG:32749.",
+      "role_id": "Kanal drainase, parit, dan sungai (waterway=canal|drain|ditch|river) dalam EPSG:32749."
+    }
+  ]
+}

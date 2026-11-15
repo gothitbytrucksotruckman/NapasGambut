@@ -17,17 +17,22 @@ export interface View {
 const pick = <T extends string>(list: readonly T[], v: string | null, fallback: T): T =>
   v !== null && (list as readonly string[]).includes(v) ? (v as T) : fallback;
 
-export function parseHash(hash: string, ctx: { dates: string[]; hasCell: (id: string) => boolean }): View {
+export function parseHash(
+  hash: string,
+  ctx: { dates: string[]; hasCell: (id: string) => boolean; hasCoherence?: boolean },
+): View {
   const [path, query = ''] = hash.replace(/^#\/?/, '').split('?');
   const q = new URLSearchParams(query);
   const d = q.get('d');
   const di = d ? ctx.dates.indexOf(d) : -1;
   const cell = q.get('cell');
+  const rawLayer = pick(LAYERS, q.get('layer'), 'state');
+  const layer: LayerId = rawLayer === 'coh' && ctx.hasCoherence === false ? 'state' : rawLayer;
   return {
     screen: pick(SCREENS, path || null, 'reveal'),
     dateIndex: di >= 0 ? di : 0,
     selectedCell: cell && /^r\d{3}c\d{3}$/.test(cell) && ctx.hasCell(cell) ? cell : null,
-    layer: pick(LAYERS, q.get('layer'), 'state'),
+    layer,
     lang: pick(LANGS, q.get('lang'), 'en'),
   };
 }

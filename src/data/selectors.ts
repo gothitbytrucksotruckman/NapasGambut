@@ -33,6 +33,11 @@ export function countsByState(b: Bundle, t: number): Record<number, number> {
 
 export const isDropped = (b: Bundle, t: number) => b.context.quality[t] === 'dropped';
 
+/** True if at least one cell/interval in the bundle has a non-null coherence value. */
+export function hasCoherence(b: Bundle): boolean {
+  return b.series.coh.some((row) => row.some((v) => v !== null));
+}
+
 /** Per-cell value for a continuous layer at date t. Coherence uses the interval ending at t. */
 export function valuesAtDate(b: Bundle, layer: 'hh' | 'hv' | 'coh', t: number): (number | null)[] {
   if (layer === 'coh') return b.series.coh.map((row) => (t === 0 ? null : row[t - 1]));

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadBundle } from '../../src/data/load';
 import type { Bundle } from '../../src/data/load';
-import { cellSeries, countsByState, isDropped, statesAtDate } from '../../src/data/selectors';
+import { cellSeries, countsByState, hasCoherence, isDropped, statesAtDate } from '../../src/data/selectors';
 import { fakeFetch, readJson } from './fixture';
 
 let b: Bundle;
@@ -39,5 +39,13 @@ describe('selectors', () => {
   it('flags the dropped date', () => {
     expect(isDropped(b, b.idx.date.get('2026-10-30')!)).toBe(true);
     expect(isDropped(b, 0)).toBe(false);
+  });
+
+  it('detects whether coherence pairs exist in the bundle', async () => {
+    expect(hasCoherence(b)).toBe(true);
+    const series = readJson('series.json');
+    series.coh = series.coh.map((row: (number | null)[]) => row.map(() => null));
+    const emptyCoh = await loadBundle('http://x/', fakeFetch({ 'series.json': series }));
+    expect(hasCoherence(emptyCoh)).toBe(false);
   });
 });

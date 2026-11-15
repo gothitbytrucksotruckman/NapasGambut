@@ -14,6 +14,12 @@ import './styles/screens.css';
 // Apply a saved theme before the first paint, so a dark-theme visitor never sees a light flash.
 applyTheme(readTheme());
 
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
