@@ -84,6 +84,19 @@ export async function loadBundle(baseUrl: string, fetchFn: typeof fetch = fetch)
   for (const key of ['rain_interval_mm', 'fires_region'] as const)
     if (context[key].length !== T - 1) throw new BundleError(f.context, key, `needs ${T - 1} entries`);
 
+  // Schema 0.2 cross-file rules.
+  const passed = scorecard.fire_risk?.status === 'passed';
+  if (passed !== scorecard.tests.some((t) => t.id === 'fire_risk_capture'))
+    throw new BundleError(f.scorecard, passed ? 'tests' : 'fire_risk.status',
+      'a fire_risk_capture test must be present exactly when fire_risk.status is passed');
+  const lmStatus = manifest.land_model?.status;
+  cells.features.forEach(({ properties: p }, i) => {
+    if ((p.cover_set || p.map_check) && lmStatus !== 'used' && lmStatus !== 'simulated')
+      throw new BundleError(f.manifest, 'land_model.status', `must be used or simulated when cells carry cover_set or map_check (features[${i}])`);
+    if (p.map_check && p.cover_set?.length !== 1)
+      throw new BundleError(f.cells, `features[${i}].properties.cover_set`, 'must hold exactly one class when map_check is set');
+  });
+
   const cell = new Map(series.cells.map((id, i) => [id, i]));
   const feature = new Map<string, CellFeature>();
   for (const ft of cells.features) if (cell.has(ft.properties.id)) feature.set(ft.properties.id, ft);

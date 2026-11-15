@@ -50,6 +50,12 @@
   text-align: left;
   vertical-align: middle;
 }
+.score__caption {
+  padding-bottom: var(--sp-2);
+  caption-side: top;
+  text-align: left;
+  font-size: var(--fs-sm);
+}
 .score__table thead th {
   color: var(--ink-soft);
   font-size: var(--fs-xs);

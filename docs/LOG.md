@@ -362,3 +362,108 @@ Run by a teammate on `fire_risk_mock.csv`. The outputs are in `ml/Firerisk/`. I 
   - Drier means more risk (−1.12), and closer to an earlier fire means more risk (−0.43). Both are as expected.
   - `hv_index_change_db` is +0.37. That comes from the model using the level and the change together, so it effectively averages the last two passes (correlation 0.39). It isn't a red flag.
   - `rain_interval_mm` is +0.17 here and −0.12 in my local run, so its sign is unstable. It is regional, nearly constant across cells within a pass, so it mostly picks up timing and tile location. Don't interpret it.
+
+## 2026-11-15 · ML models in the pipeline: plan (M0) and feature stage (M1, DONE, awaiting user commit)
+
+Plan approved by the user with the recommended answers:
+- Stage order: `03 → 04 → 04b_landclass_features → 04c_landclass → 05 → 06 → 07 → 07b_fire_risk → 08`. New stage outputs are CSV/JSON (small tables; readable on machines without a parquet engine).
+- The land model predicts cover (forest, degraded, plantation, built). Stage 03's own class cascade turns cover into contract classes. The model never changes which cells are reference forest, so the noise floor stays chosen by maps, not by the radar.
+- Weak labels from the two stage-03 cover maps (WorldCover, GFW concessions); `n_maps_agree` is out of 2, not 4 as in the mock.
+- Model is used only if block-CV accuracy against the maps is ≥ 0.75 and coverage on held-out blocks is ≥ 0.87; otherwise the map classes stay and provenance says why.
+- Fire risk keeps the HV index as specified, labelled "HV radar index" in the app, not "drying". Regional rain is dropped (one value per pass at the box centre; sign unstable between runs); M3 shows the per-fold evidence.
+- MAPIE and cleanlab to be installed (pinned) at M2. GLCM is written in numpy (no scikit-image).
+- Contract 0.2 (additive, optional): `manifest.land_model`, `cover_set` and `map_check` on cells, `scorecard.fire_risk`. The mock bundle marks its class sets `simulated` and its fire block `not_run`.
+- M4 adds a guard so 08_export refuses a cube made by `01_fetch.py --dry-run`; today nothing marks such a cube as synthetic.
+- The Colab outputs in `ml/Lancdclass/` and `ml/Firerisk/` (mock data) are the reference targets for the M2 and M3 self-tests: hand-label accuracy 0.92 and coverage 0.89, 18 empty sets, 114 map-check flags; fire PR-AUC 0.145 on 74 test fires. They are never loaded as models or shown as results.
+
+Found while reading: the real stage-03 grid has 8,250 classed cells (3,960 unmatched dropped), and no rewetted cells because no dam data was found. Stage 03 also requires peat for `reference_forest`, which contradicts "mineral soil" (not changed).
+
+M1, new: `pipeline/04b_landclass_features.py`. Writes `data/landclass_features.csv` with the feature columns of `ml/mock/landclass_cells_mock.csv`. Season medians and HV temporal CV come from stage 04's linear cell means; HV spatial std and a 16-level GLCM (contrast, homogeneity, entropy; equal-probability levels over the scene; 4 directions, symmetric) come from the 20 m pixels of the season-median HV image; distance to river from the OSM river lines. Reuses 04's loaders, pixel-to-cell map and cell statistics.
+
+Verification: `py pipeline/04b_landclass_features.py --self-test` passes (36 synthetic cells: column names match the mock CSV, GLCM equals a brute-force count, a constant cell gives contrast 0 and homogeneity 1, the dropped date and masked pixels change nothing, known HV level, CV and river distance recovered) · `npm run typecheck` clean · `npm test` 13 files, 96 tests passed · `npm run build` ok · `npm run check-bundle` ok on the mock bundle.
+
+Not verified: the real run. This machine has no xarray, numcodecs, pyproj or parquet engine, and the cube on disk is dry-run output, so features computed from it now would be meaningless.
+
+## 2026-11-15 · M2: land-class stage (DONE, awaiting user commit)
+
+User had committed M1 (`9e161da`). Installed with the user's approval: MAPIE 1.6.0 and cleanlab 2.9.0 (scikit-learn stays 1.9.1). Calls checked in the installed source: `SplitConformalClassifier(estimator, confidence_level, conformity_score, prefit)`, `.conformalize(X, y)`, `.predict_set(X)` → (labels, sets of shape n × classes × levels), set columns in `estimator.classes_` order (`_get_classes_info`); `cleanlab.filter.find_label_issues(labels, pred_probs, ...)`; `HistGradientBoostingClassifier(class_weight="balanced")`. MAPIE accepts NaN features with a prefit HGB model (checked).
+
+New: `pipeline/04c_landclass.py`.
+- Weak labels from stage 03's map shares: plantation if concession share ≥ 0.5, else the largest of forest, built, degraded; purity = that share; maps agreeing out of 2.
+- Whole 5 km blocks split first, from all cells: 20% calibration, 20% check, 60% training. Only training cells are cleaned (purity ≥ 0.8, both maps agree).
+- Out-of-fold probabilities for every cell (GroupKFold 5 by block); cleanlab flags on them, kept where the set has one class (`map_check`).
+- LAC sets at 90% from MAPIE, calibrated on all calibration cells against map labels.
+- Gate: block-CV accuracy ≥ 0.75, check coverage ≥ 0.87, ≥ 20 clean training cells per class; else `not_used` with the failing numbers.
+- Cover → contract class with stage 03's rules, only where the set has one class; reference forest never changes.
+- Writes `data/landclass.csv`, `data/landclass_report.json`, and `class_source` + `landclass` in `data/grid_provenance.json` (a failed run restores the map source).
+
+Ruling (user chose option A): calibrate on all calibration cells against map labels, so "90%" means agreement with the 2021 maps. With map labels about 8% wrong, the LAC threshold sits near 1, so sets of two or more classes are common and empty sets ("radar can't tell") are rare. Colab's 18 empty / 982 single-class sets / 114 flags could not be reproduced this way: a probe gave a threshold of 0.51 to 0.999 against map labels and 0.19 to 0.48 against the simulated truth (Colab: 0.17), so Colab's calibration labels were probably cleaner than the maps. Those counts are no longer self-test targets.
+
+Verification: `py pipeline/04c_landclass.py --self-test` passes on `ml/mock/landclass_cells_mock.csv` (simulated): block-CV accuracy 0.888 (n 428; Colab 0.859), hand-label accuracy 0.89 and coverage 0.98 (n 100; Colab 0.92 / 0.89), check coverage 0.912 (n 193), sets 0 empty / 715 single, 53 map-check flags, same top class as Colab on 93.7% of cells; shuffled labels give `not_used`; calibrating without the cleanlab-flagged cells drops check coverage to 0.772 (the known bug; lower on all 9 seeds tried). Weak-label, rule and provenance functions tested on hand rows. `04b` self-test still passes · `npm run typecheck` clean · `npm test` 13 files, 96 tests passed · `npm run build` ok · `npm run check-bundle` ok.
+
+Not verified: the real run (no parquet engine here; `main()` was run once with a stubbed grid by the worker). On the mock table the gate depends on the split: 2 of 6 seeds gave `not_used` (25 calibration blocks); the real grid gives about 1,650 calibration cells.
+
+## 2026-11-15 · M3: fire-risk hindcast stage (DONE, awaiting user commit)
+
+User had committed M2 (`599664a`).
+
+New: `pipeline/07b_fire_risk.py`, a hindcast of one season at one site (never a forecast or a probability).
+- Panel (`data/fire_risk_panel.csv`, same columns as `ml/mock/fire_risk_mock.csv`): one row per cell for each pair of consecutive passes with radar data, from the second pass on. Target = any fire in the cell before the next radar pass (36 days across the Jul–Aug gap). Features known at the pass: HV index, its change since the previous radar pass, canal density, distance to the nearest earlier fire (cell centres, capped at 30 km), interval length, land cover (Model A's if 04c says `used`, else the map label). Rows stop after the cell's first fire. Rain stays in the panel for the team's notebook but is not a feature.
+- Evaluation (`data/fire_risk_report.json`): last two passes locked as the test; C tuned by GroupKFold by block (PR-AUC); baselines B1 (fire within 2 km in the interval just ended), B2 (HV index rank), B3 (B1 + B2 logistic); PR-AUC, top-10% capture ranked within each pass, Brier; 1,000 block-bootstrap resamples for 95% intervals. `passed` only if the model's lower bound is above the best baseline; `not_run` if training has < 10 fires or the test has none. The lift table (fire rate by HV-index quintile) is always written.
+- Checked in sklearn 1.9.1: `GridSearchCV.fit(..., groups=...)` reaches the splitter with metadata routing off; `LogisticRegression` is L2 by default and `penalty=` is deprecated, so it is not passed; no deprecation or future warnings in the run.
+- Reviewed fix: a grid cell with no land class now stops the run instead of silently counting as forest.
+
+Rain decision, with evidence (mock training rows, 5 block folds, C 0.03): adding rain leaves the mean CV PR-AUC unchanged (0.0818 with and without). Its coefficient was negative in all 5 folds here, so the earlier "sign unstable" note came from comparing two runs, not folds. Dropped anyway: it adds no ranking skill, and the real rain is one box-centre value per pass, so it can only learn timing.
+
+Verification: `py -W error::DeprecationWarning -W error::FutureWarning pipeline/07b_fire_risk.py --self-test` passes. On `ml/mock/fire_risk_mock.csv` (simulated): **bar not passed**, as expected. Model PR-AUC 0.173 (Colab 0.145, which used C 0.3; here C 0.03), interval 0.116–0.253, below B3 0.142; B2 0.140, B1 0.047; top-10% capture 0.351 vs 0.311; test 1,869 rows / 74 fires; lift 11.9% in the lowest-index fifth vs 0% in the highest; rank correlation with Colab's test scores 0.992. A separable synthetic panel passes; a panel with no test fires gives `not_run`; the panel builder is checked on six hand-made cells (gap interval, first-fire stop, 2 km baseline, distance cap, change across the gap). `npm run typecheck` clean · `npm test` 13 files, 96 tests passed · `npm run build` ok · `npm run check-bundle` ok.
+
+Not verified: the panel on real inputs (no parquet engine here; `context_summary.json`, `fires.parquet` and `landclass.csv` do not exist yet in `data/`).
+
+## 2026-11-15 · M4: contract 0.2, export wiring, mock sync (DONE, awaiting user commit)
+
+User had committed M3 (`213c7f7`) and approved contract 0.2. Two workers in parallel on separate files, both diffs reviewed.
+
+Contract 0.2 (additive; a 0.1 bundle still loads):
+- `src/contract/index.ts`: `schema_version` "0.1" or "0.2"; `COVER_IDS` (forest, degraded, plantation, built); optional `manifest.land_model {status used|not_used|simulated, version, confidence_level, reason_en, reason_id}`; optional cell `cover_set` and `map_check`; optional `scorecard.fire_risk {status passed|not_passed|not_run, test_dates, model_pr_auc, model_pr_auc_ci, best_baseline, lift}`. Zod 4 `z.enum` on a readonly array and `.optional()` checked in `schemas.d.ts`.
+- `src/data/load.ts` rules (so `check-bundle` and 08_export enforce them too): a `fire_risk_capture` test exists exactly when `fire_risk.status` is passed; cells with `cover_set` or `map_check` need `land_model.status` used or simulated; `map_check` needs a one-class set.
+- `docs/data-contract.md`: new "Schema 0.2 (additive)" section.
+
+Export (`pipeline/08_export.py`):
+- Reads `landclass.csv`, `landclass_report.json`, `fire_risk_report.json` and the cube's root attributes; a missing file names the stage to run.
+- Land model used: each cell's class becomes `class_model`, plus `cover_set` and `map_check` (the map's label on flagged cells); scorecard adds `land_model_coverage` and `map_out_of_date`. Not used: map classes, no sets, and `land_model.reason_en/id` lists why. The scorecard is computed after the swap.
+- `scorecard.fire_risk` copied from the 07b report; `fire_risk_capture` added only when the bar is passed, worded "Hindcast of the 2026 season at one site, not a forecast."
+- Guards: refuses a cube not marked `data_source: "asf_live_stream"` (today's cube has no mark and is dry-run output, so it is refused); refuses `class_source` and the land report disagreeing in either direction (the reverse check was added in review).
+
+`pipeline/01_fetch.py`: cubes carry `data_source` (`asf_live_stream` live, `synthetic_dry_run` for `--dry-run`; a merge of mixed batches is `mixed`, which 08 refuses). Checked by reading and compiling only (no xarray or h5py here).
+
+Mock generator: `schema_version` 0.2; `land_model.status "simulated"` with a plain note; every cell has a simulated `cover_set` from its own random stream (seed + 101), so all earlier values and every PNG are byte-identical: 180 empty sets (2.9%), 503 two-class (8.1%), 102 `map_check` (1.8% of one-class cells). `fire_risk.status "not_run"` (no model runs on simulated data) with an honest lift table from the mock series using 07b's panel rule: test passes 6 and 18 Oct; fire rate 5.6% in the lowest HV-index fifth down to 0.6% in the highest. Equal HV values are split by row order (pandas qcut would keep them together); marked as a shortcut.
+
+Verification: self-tests pass for 04b, 04c, 07b, 07_states (14/14) and 08_export (now including land model used and not used, fire passed/not_passed/not_run, both guards, and the app loader on the 0.2 bundle) · `py -m py_compile pipeline/01_fetch.py` ok · `npm run typecheck` clean · `npm test` 13 files, 106 tests passed · `npm run build` ok · `npm run mock` twice gives identical files · `npm run check-bundle` ok on the new mock bundle (data 3.36 MB, images 5.51 MB) and on a copy with the 0.1 manifest, cells and scorecard from the last commit (3.20 MB).
+
+Not verified: 01_fetch's new attribute on a live or dry run; 08_export on real stage outputs. The app does not show the new fields yet (M5).
+
+## 2026-11-15 · M5: model fields in the app (DONE, awaiting user commit)
+
+User had committed M4 (`f2c3880`).
+
+New `src/data/models.ts` (display views only, no science): `coverView`, `fireRiskView`, `landCoverageTest`.
+- Pulse card: a "Radar cover" row after "Land type" when the cell has a class set and the land model is used or simulated. One class shows its name; two or more show "One of: …" with an overlapping-squares symbol; an empty set shows "Radar can't tell" with a circled question mark. "(simulated)" is added on mock bundles. A hint says the set is checked against the 2021 maps. Flagged cells get a flag symbol and "Map (2021): … Radar (2026): … Worth checking on the ground."
+- Scorecard: tests heading is now "Checks on the pattern" (the list can hold more than four). New "Fire-risk hindcast, 2026 season, one site" section when the bundle has `fire_risk`: a status sentence (passed: result is in the checks; not passed: "The model did not beat the simple rule, so only the table is shown." with PR-AUC, its 95% interval and the best rule in plain words; not run: descriptive table only), the lift table by HV radar index fifth, and "It ranks cells; it is not a forecast."
+- Method: "Two models and their limits" (land cover from radar and what its 90% means; status from the bundle, with the checked coverage when used or the manifest's reason otherwise; map check; fire-risk hindcast and its bar), shown when the bundle has model fields. "Use of AI" is its own section on every bundle (moved out in review).
+- Review fixes: "ranks cells by their chance of a fire" became "ranks cells by fire risk" (too close to "probability"); stray "milestone 6" comments removed.
+
+Verification: `npm run typecheck` clean · `npm test` 14 files, 115 tests passed (9 new in `tests/models.test.ts`: every cover case, map check, simulated flag, 0.1 cell and not-used model give no row, fire view on the real mock scorecard, no "probability" or bare "forecast" in English strings) · `npm run build` ok · `npm run check-bundle` ok. Real app on the Vite dev server, in-app browser: map-check cell r001c027 shows "Forest (simulated)" and the flag note; r000c043 shows "Radar can't tell (simulated)" with its symbol; r000c007 shows "One of: Forest, Cleared or degraded land (simulated)"; Scorecard shows the not-run sentence and the five-row lift table (5.6% down to 0.6%); Method shows both model sections and "Penggunaan AI" in Indonesian; no console errors; no horizontal overflow at 375 px on Scorecard, Method and the pulse card.
+
+Not verified: the passed and not-passed sentences and the "used" Method lines in the browser (the mock bundle is simulated and not_run; they are covered by the helper tests and type checks only); a native speaker has not checked the new Indonesian (all marked `// REVIEW`). Added `.claude/launch.json` (dev server entry for the in-app browser preview).
+
+## 2026-11-15 · M6: model docs (DONE, awaiting user commit)
+
+User had committed M5 (`0e38877`).
+
+- New `docs/models.md`: the two models for the data team: stage order and commands, the three Python packages with pinned versions (scikit-learn 1.9.1, MAPIE 1.6.0, cleanlab 2.9.0), features, labels, validation, the calibration ruling (90% = agreement with the 2021 maps), the gates, the hindcast bar and wording, the export guards, and the note that every reference number comes from simulated tables. The repo has no README.md yet (the user writes it), so this is the section to link or paste.
+- `docs/method.md`: "Two models and their limits" and "Use of AI", the same English text as the Method screen.
+- `ml/mock/README.md`: pointer to the pipeline stages and why the Colab `.joblib` files are not loaded.
+
+Verification: self-tests pass for 04b, 04c, 07b, 05_coherence, 07_states (14/14) and 08_export (with the app loader) · `npm run typecheck` clean · `npm test` 14 files, 115 tests passed · `npm run build` ok · `npm run check-bundle` ok (data 3.36 MB, images 5.51 MB) · new docs contain no "probability", "measured" or bare "forecast" claim about a result.
+
+State of the ML work (M0 to M6): code complete and checked offline on simulated data. Not done, and needs the real environment: run stages 01 (live), 02, 04, 04b, 04c, 05, 06, 07, 07b, 08 on real data; until then the export refuses to write a real bundle and the app keeps the "Simulated data" badge.

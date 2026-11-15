@@ -183,3 +183,50 @@ export function buildScorecard({ land, D, states, dates, peakIndex }: Input): Sc
     ],
   };
 }
+
+type FireRisk = NonNullable<Scorecard['fire_risk']>;
+
+/**
+ * Quintile lift by HV index, quintile 1 = lowest. pandas qcut(q=5) in pipeline/07b_fire_risk.py is the reference:
+ * without ties, rank r of n falls in bin max(1, ceil(5r / (n - 1))), which is what qcut's interpolated edges give.
+ * shortcut: tied HV values are split by row order rather than kept in one bin as qcut does; fine for a simulated bundle.
+ */
+export function fireLift(rows: { hv: number; fire: boolean }[]): FireRisk['lift'] {
+  const n = rows.length;
+  const order = rows.map((_, i) => i).sort((a, b) => rows[a].hv - rows[b].hv || a - b);
+  const groups = [1, 2, 3, 4, 5].map((quintile) => ({ quintile, n: 0, fires: 0 }));
+  order.forEach((i, r) => {
+    const g = groups[n === 1 ? 0 : Math.max(1, Math.ceil((5 * r) / (n - 1))) - 1];
+    g.n++;
+    if (rows[i].fire) g.fires++;
+  });
+  return groups.filter((g) => g.n > 0).map((g) => ({ ...g, rate: round(g.fires / g.n, 3) }));
+}
+
+/**
+ * The fire-risk block for the mock: no model runs, so only the test dates and the lift are filled in.
+ * Panel rule as build_panel in pipeline/07b_fire_risk.py: for kept passes p_0..p_m and each i in 1..m-1,
+ * one row per cell not burned before p_i with HV at p_i and p_(i-1); target = any fire from p_i to p_(i+1).
+ */
+export function mockFireRisk(hv: (number | null)[][], fires: (number | null)[][], dates: string[], dropped: boolean[]): FireRisk {
+  const kept = dates.map((_, t) => t).filter((t) => !dropped[t]);
+  const nInt = dates.length - 1;
+  const firstFire = fires.map((row) => { const k = row.findIndex((v) => (v ?? 0) > 0); return k < 0 ? nInt : k; });
+  const rows: { pass: number; hv: number; fire: boolean }[] = [];
+  for (let i = 1; i < kept.length - 1; i++) {
+    const [a, b, c] = [kept[i - 1], kept[i], kept[i + 1]];
+    hv.forEach((h, j) => {
+      if (firstFire[j] < b || h[b] === null || h[a] === null) return;
+      rows.push({ pass: b, hv: h[b]! / 10, fire: fires[j].slice(b, c).some((v) => (v ?? 0) > 0) });
+    });
+  }
+  const testPasses = [...new Set(rows.map((r) => r.pass))].slice(-2);
+  return {
+    status: 'not_run',
+    test_dates: testPasses.map((t) => dates[t]),
+    model_pr_auc: null,
+    model_pr_auc_ci: null,
+    best_baseline: null,
+    lift: fireLift(rows.filter((r) => testPasses.includes(r.pass))),
+  };
+}

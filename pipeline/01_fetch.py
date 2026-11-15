@@ -485,6 +485,8 @@ def run_fetch(cfg, batch="A", start_idx=None, end_idx=None, token="", dry_run=Fa
             "dates": json.dumps([r["date"] for r in rows]),
             "scene_names": json.dumps([r["scene_name"] for r in rows]),
             "versions": json.dumps([r["version"] for r in rows]),
+            # 08_export.py refuses a cube that is not marked as streamed live.
+            "data_source": "synthetic_dry_run" if dry_run else "asf_live_stream",
         }
     )
 
@@ -526,6 +528,7 @@ def merge_batches(cfg):
 
     merged = xr.concat([ds_a, ds_b_aligned], dim="time").sortby("time")
     all_dates = [str(d) for d in merged.time.values]
+    live = [d.attrs.get("data_source") == "asf_live_stream" for d in (ds_a, ds_b)]
     merged.attrs.update(
         {
             "epsg": int(ds_a.attrs.get("epsg", 32749)),
@@ -536,6 +539,7 @@ def merge_batches(cfg):
             "flightDirection": ds_a.attrs.get("flightDirection", "A"),
             "batch": "MERGED",
             "dates": json.dumps(all_dates),
+            "data_source": "asf_live_stream" if all(live) else ("mixed" if any(live) else "synthetic_dry_run"),
         }
     )
     out_path = PROJECT_ROOT / cfg.get("merged_cube_zarr", "data/gcov_cube.zarr")
